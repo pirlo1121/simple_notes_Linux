@@ -21,6 +21,7 @@ export const tauriBackend: Backend = {
   setAutostart: (enabled) => invoke('set_autostart', { enabled }),
   shortcutStatus: () => invoke('shortcut_status'),
   hideWindow: () => invoke('hide_window'),
+  dockWindow: () => invoke('dock_window'),
   quit: () => invoke('quit_app'),
-  on: (event: BackendEvent, fn) => listen(`qn://${event}`, () => fn()),
+  on: (event: BackendEvent, fn) => listen(`qn://${event}`, (e) => fn(e.payload)),
 };

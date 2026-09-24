@@ -61,6 +61,7 @@ fn main() {
             commands::set_autostart,
             commands::shortcut_status,
             commands::hide_window,
+            commands::dock_window,
             commands::quit_app,
         ])
         .setup(move |app| {
@@ -69,6 +70,7 @@ fn main() {
                 return Ok(());
             }
             window::register_summon_shortcut(app.handle());
+            window::load_placement();
             if !args.iter().any(|a| a == "--hidden") {
                 window::summon(app.handle());
             }
@@ -76,8 +78,12 @@ fn main() {
         })
         .on_window_event(|window, event| {
             // Cerrar = ocultar. Sin diálogos: el frontend guarda al recibir el evento.
+            if let WindowEvent::Moved(pos) = event {
+                window::on_moved(window, *pos);
+            }
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
+                window::remember_placement(window.outer_position(), window.outer_size(), window.scale_factor());
                 let _ = window.emit(window::EVENT_HIDING, ());
                 let _ = window.hide();
             }

@@ -12,6 +12,7 @@ export interface CommandContext {
   openFolder(): void;
   toggleAutostart(): void;
   toggleSidebar(): void;
+  dockWindow(): void;
   showHelp(): void;
   hide(): void;
   quit(): void;

@@ -125,6 +125,39 @@ export class NotesService {
   }
 
   /**
+   * Si la nota abierta ya existía en disco y se ha quedado sin título ni
+   * contenido, la manda a la papelera. La nota sigue abierta como una nota en
+   * blanco sin guardar: si se vuelve a escribir en ella, se crea de nuevo.
+   * Devuelve el id eliminado, o null si no había nada que hacer.
+   */
+  discardIfEmpty(): Promise<string | null> {
+    const note = this.current;
+    if (!note?.persisted || !this.isEmpty(note)) return Promise.resolve(null);
+
+    // Parte síncrona: a partir de aquí la nota cuenta como no guardada.
+    this.saver.cancel();
+    note.persisted = false;
+    note.file = '';
+    this.savedVersion = this.version;
+    this.drafts.remove(note.id);
+    this.setStatus('idle');
+
+    // En la cadena, para que ocurra después de cualquier guardado pendiente.
+    const id = note.id;
+    const deleted = this.chain.then(async () => {
+      try {
+        await this.backend.deleteNote(id);
+        return id;
+      } catch (e) {
+        console.error('discard', e);
+        return null;
+      }
+    });
+    this.chain = deleted.then(() => undefined);
+    return deleted;
+  }
+
+  /**
    * Tras un cierre inesperado: guarda los borradores que no llegaron a disco.
    * Devuelve cuántas notas se recuperaron.
    */

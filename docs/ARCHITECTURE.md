@@ -2,7 +2,7 @@
 
 ## Principios
 
-1. **La ventana nunca se destruye.** Arrancar WebKit es lo único caro. Por eso el proceso queda residente (autoarranque con `--hidden`) y Ctrl+Espacio solo hace `show()` + `focus()`.
+1. **La ventana nunca se destruye.** Arrancar WebKit es lo único caro. Por eso el proceso queda residente (autoarranque con `--hidden`) y Ctrl+Espacio solo hace `show()` + `focus()`. La ventana es un panel lateral que siempre queda encima (`alwaysOnTop`): `window::place` la pega al borde derecho del área útil del monitor donde está el puntero o, si el usuario la arrastró (`WindowEvent::Moved`), la deja flotando donde la dejó.
 2. **Rust es dueño de los datos, el frontend de la interacción.** Rust lee y escribe ficheros, mantiene el índice y busca. El frontend nunca carga el contenido de todas las notas.
 3. **Ficheros como fuente de verdad.** No hay base de datos. El índice en memoria se reconstruye desde `~/.quicknotes` en cada arranque y se sincroniza al mostrar la ventana.
 4. **Nada de diálogos.** Guardar es automático, eliminar se puede deshacer y cerrar solo oculta.
@@ -19,8 +19,7 @@ Ctrl+Space┬─► plugin global-shortcut ───────────┐
                                    show + focus + emit qn://summoned
                                                 │
  ┌──────────── WebView (TypeScript) ────────────▼───────────────────┐
- │ App.onSummoned → enfoca el editor (nota en blanco, o la misma    │
- │                  si pasaron < 90 s) → sync_disk                  │
+ │ App.onSummoned → enfoca el editor en la última nota → sync_disk  │
  │ Editor input → NotesService.update                               │
  │                 ├─ DraftJournal.put (localStorage, síncrono)     │
  │                 └─ debounce 400 ms / máx. 2 s → invoke save_note │
@@ -41,7 +40,7 @@ src/                         Frontend (TypeScript, sin framework)
 ├── types.ts                 Tipos compartidos con Rust (NoteMeta, NoteDoc…)
 ├── components/              Vistas: crean su DOM y exponen métodos render()
 │   ├── SearchBar.ts         Barra superior (zona de arrastre de la ventana)
-│   ├── NoteList.ts          Resultados, comandos, etiquetas
+│   ├── NoteList.ts          Lista bajo el editor: las demás notas, resultados, comandos
 │   ├── Editor.ts            Título + textarea, listas, etiquetas en vivo
 │   ├── StatusBar.ts         Estado de guardado, fechas y palabras
 │   ├── Toast.ts             Avisos con acción (Deshacer)
@@ -104,6 +103,10 @@ El frontend descarta respuestas obsoletas con un número de secuencia.
 
 1. Escritura atómica: un corte deja la versión anterior o la nueva, nunca una a medias.
 2. Diario en localStorage en cada pulsación: si el proceso muere antes del guardado (ventana de 400 ms), el siguiente arranque guarda el borrador.
+
+**Panel lateral.** Una columna estrecha aprovecha el alto de la pantalla y no tapa el trabajo principal. El editor ocupa la parte de arriba y la lista la de abajo; al buscar, la proporción se invierte. El ancho, y la posición si flota, se guardan en `.window.json`; los escribe Rust al ocultar o salir. El frontend recibe `qn://placement` (acoplada o no) para redondear todas las esquinas cuando flota. No va en `.state.json`, que es del frontend: dos escritores sobre el mismo fichero se pisarían.
+
+**Notas vacías.** Una nota sin título ni contenido no se crea nunca en disco. Si una nota existente se vacía, `NotesService.discardIfEmpty` la manda a la papelera al salir de ella: al cambiar de nota, crear otra, ocultar o salir. Por seguridad, `Store::purge_empty` hace lo mismo al arrancar. Siempre es recuperable.
 
 **Historial.** Antes de sobrescribir se copia la versión en disco, como mucho una vez cada 5 minutos, con un máximo de 50 por nota. Restaurar fuerza una copia de la versión actual, para que restaurar también se pueda deshacer.
 

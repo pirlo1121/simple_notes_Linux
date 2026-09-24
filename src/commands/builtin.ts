@@ -11,6 +11,7 @@ export const builtinCommands: Command[] = [
   { name: 'tags', aliases: ['etiquetas'], title: 'Explorar etiquetas', run: (c) => c.showTags() },
   { name: 'folder', aliases: ['carpeta'], title: 'Abrir ~/.quicknotes en el gestor de archivos', run: (c) => c.openFolder() },
   { name: 'sidebar', aliases: ['lista'], title: 'Mostrar / ocultar la lista de notas', shortcut: 'Ctrl B', run: (c) => c.toggleSidebar() },
+  { name: 'dock', aliases: ['acoplar'], title: 'Volver a acoplar la ventana a la derecha', run: (c) => c.dockWindow() },
   { name: 'autostart', title: 'Activar / desactivar inicio automático', run: (c) => c.toggleAutostart() },
   { name: 'help', aliases: ['ayuda', '?'], title: 'Atajos de teclado', shortcut: 'F1', run: (c) => c.showHelp() },
   { name: 'hide', aliases: ['ocultar'], title: 'Ocultar ventana', shortcut: 'Esc', run: (c) => c.hide() },

@@ -3,7 +3,7 @@
 
 import type { HistoryEntry, NoteDoc, NoteInput, NoteMeta, PersistedState, ShortcutStatus } from '../types';
 
-export type BackendEvent = 'summoned' | 'hiding' | 'quit';
+export type BackendEvent = 'summoned' | 'hiding' | 'quit' | 'placement';
 
 export interface Backend {
   listNotes(): Promise<NoteMeta[]>;
@@ -26,8 +26,11 @@ export interface Backend {
   setAutostart(enabled: boolean): Promise<boolean>;
   shortcutStatus(): Promise<ShortcutStatus | null>;
   hideWindow(): Promise<void>;
+  /** Vuelve a acoplar la ventana al borde derecho. */
+  dockWindow(): Promise<void>;
   quit(): Promise<void>;
-  on(event: BackendEvent, fn: () => void): Promise<() => void>;
+  /** `placement` lleva `true` si la ventana está acoplada, `false` si flota. */
+  on(event: BackendEvent, fn: (payload: unknown) => void): Promise<() => void>;
 }
 
 export const isTauri = '__TAURI_INTERNALS__' in window;

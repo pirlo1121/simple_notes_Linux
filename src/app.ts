@@ -1,8 +1,13 @@
 // Orquestador: conecta componentes, servicios y comandos.
 //
-//   ┌ SearchBar ───────────────────────────────┐
-//   │ NoteList (resultados/comandos) │ Editor   │
-//   └ StatusBar ───────────────────────────────┘
+// Panel lateral, pegado al borde derecho de la pantalla:
+//
+//   ┌ SearchBar ─────────────┐
+//   │ Editor (nota actual)   │
+//   ├────────────────────────┤
+//   │ NoteList (las demás,   │
+//   │ resultados, comandos)  │
+//   └ StatusBar ─────────────┘
 
 import { builtinCommands } from './commands/builtin';
 import { CommandRegistry, type CommandContext } from './commands/registry';
@@ -25,8 +30,6 @@ import { h } from './utils/dom';
 import { displayTitle, wordCount } from './utils/text';
 import { todayTitle } from './utils/time';
 
-/** Si se vuelve a abrir la ventana antes de este tiempo, se sigue en la misma nota. */
-const RESUME_WINDOW_MS = 90_000;
 const RECENT_IN_LIST = 5;
 const LIST_LIMIT = 300;
 
@@ -53,7 +56,6 @@ export class App implements CommandContext {
   private help = new HelpPanel(() => this.notesDir);
   private notesDir = '~/.quicknotes';
   private searchSeq = 0;
-  private lastActivity = 0;
   private statusFrame = 0;
   private refreshSoon = useDebounce(() => void this.runQuery(false), 120);
 
@@ -84,7 +86,6 @@ export class App implements CommandContext {
     this.editor = new Editor({
       onChange: (patch) => {
         this.notes.update(patch);
-        this.lastActivity = Date.now();
         this.scheduleStatus();
       },
       onTagClick: (tag) => this.focusSearch(`#${tag} `),
@@ -96,7 +97,7 @@ export class App implements CommandContext {
       'div',
       { class: 'app' },
       this.search.el,
-      h('main', { class: 'main' }, this.list.el, this.editor.el),
+      h('main', { class: 'main' }, this.editor.el, this.list.el),
       this.status.el,
       this.toast.el,
       this.history.el,
@@ -123,12 +124,15 @@ export class App implements CommandContext {
     this.notesDir = dir;
     for (const m of metas) this.index.set(m.id, m);
 
-    this.newNote();
-    void this.runQuery();
+    await this.openLastNote();
 
     this.backend.on('summoned', () => void this.onSummoned());
-    this.backend.on('hiding', () => this.flushAll());
+    this.backend.on('hiding', () => {
+      void this.discardEmptyNote();
+      this.flushAll();
+    });
     this.backend.on('quit', () => this.quit());
+    this.backend.on('placement', (docked) => this.root.classList.toggle('floating', docked === false));
     window.addEventListener('blur', () => this.flushAll());
     window.addEventListener('beforeunload', () => this.flushAll());
 
@@ -164,13 +168,9 @@ export class App implements CommandContext {
   private async onSummoned(): Promise<void> {
     this.history.close();
     this.help.close();
-    const resume = this.notes.isEmpty() || Date.now() - this.lastActivity < RESUME_WINDOW_MS;
-    if (resume) {
-      this.editor.focusBody();
-    } else {
-      this.setQuery('');
-      this.newNote();
-    }
+    // Se sigue en la nota abierta: siempre es la última que se usó.
+    if (this.ui.get().query) this.setQuery('');
+    this.editor.focusBody();
     try {
       if (await this.backend.syncDisk()) await this.reloadFromDisk();
     } catch (e) {
@@ -201,6 +201,16 @@ export class App implements CommandContext {
     if (isNew && this.notes.current?.id === meta.id) this.state.touchRecent(meta.id);
     this.refreshSoon();
     this.renderStatus();
+  }
+
+  /** Al salir de una nota que se quedó vacía: quitarla de la lista y del disco. */
+  private discardEmptyNote(): Promise<void> {
+    return this.notes.discardIfEmpty().then((id) => {
+      if (!id) return;
+      this.index.delete(id);
+      this.state.forget(id);
+      void this.runQuery(false);
+    });
   }
 
   private flushAll(): void {
@@ -260,16 +270,22 @@ export class App implements CommandContext {
     return this.state.recent.filter((id) => this.index.has(id));
   }
 
+  /** Lista bajo el editor sin búsqueda: fijadas, recientes y el resto (sin la nota abierta). */
   private defaultItems(): ListItem[] {
     const items: ListItem[] = [];
-    const shown = new Set<string>();
-    const pinned = this.pinnedNotes();
+    const currentId = this.notes.current?.id;
+    const shown = new Set<string>(currentId ? [currentId] : []);
+    // El número del atajo Ctrl 1…9 sale de la lista completa de fijadas,
+    // aunque la nota abierta no se muestre.
+    const pinned = this.pinnedNotes()
+      .map((note, i) => ({ note, hotkey: i < 9 ? `Ctrl ${i + 1}` : undefined }))
+      .filter(({ note }) => note.id !== currentId);
     if (pinned.length) {
       items.push({ kind: 'header', label: 'Fijadas' });
-      pinned.forEach((note, i) => {
-        items.push({ kind: 'note', note, hotkey: i < 9 ? `Ctrl ${i + 1}` : undefined });
+      for (const { note, hotkey } of pinned) {
+        items.push({ kind: 'note', note, hotkey });
         shown.add(note.id);
-      });
+      }
     }
     const recent = this.recentIds()
       .filter((id) => !shown.has(id))
@@ -289,8 +305,11 @@ export class App implements CommandContext {
       items.push({ kind: 'header', label: 'Todas' });
       for (const note of rest) items.push({ kind: 'note', note });
     }
-    if (!this.index.size) {
-      items.push({ kind: 'empty', label: 'Aún no hay notas. Escribe: se guarda solo.' });
+    if (!items.length) {
+      items.push({
+        kind: 'empty',
+        label: this.index.size ? 'No hay más notas. Ctrl N para crear otra.' : 'Aún no hay notas. Escribe: se guarda solo.',
+      });
     }
     return items;
   }
@@ -393,7 +412,16 @@ export class App implements CommandContext {
 
   // ── Comandos (CommandContext) ───────────────────────────────────────────
 
+  /** Al arrancar: la última nota abierta, o la última editada, o una en blanco. */
+  private async openLastNote(): Promise<void> {
+    const lastEdited = [...this.index.values()].sort((a, b) => b.updated - a.updated)[0];
+    const id = this.recentIds()[0] ?? lastEdited?.id;
+    if (id) await this.openNote(id);
+    if (!this.notes.current) this.newNote();
+  }
+
   newNote(title = ''): void {
+    void this.discardEmptyNote(); // si estaba vacía, se reutiliza como nota en blanco
     const cur = this.notes.current;
     if (cur && !cur.persisted && this.notes.isEmpty()) {
       if (title) this.notes.update({ title });
@@ -401,18 +429,17 @@ export class App implements CommandContext {
       this.notes.openBlank(title);
     }
     this.editor.load(this.notes.current!);
-    this.lastActivity = Date.now();
-    this.renderList();
+    void this.runQuery(false);
     this.renderStatus();
     this.editor.focusBody();
   }
 
   async openNote(id: string): Promise<void> {
-    this.lastActivity = Date.now();
     if (this.notes.current?.id === id) {
       this.editor.focusBody();
       return;
     }
+    await this.discardEmptyNote();
     await this.notes.flush(); // que getNote lea lo último guardado
     const doc = await this.backend.getNote(id);
     if (!doc) {
@@ -425,7 +452,7 @@ export class App implements CommandContext {
     this.notes.open(doc);
     this.editor.load(this.notes.current!);
     this.state.touchRecent(id);
-    this.renderList();
+    void this.runQuery(false);
     this.renderStatus();
     this.editor.focusBody();
   }
@@ -574,6 +601,10 @@ export class App implements CommandContext {
     this.state.set('sidebar', sidebar);
   }
 
+  dockWindow(): void {
+    void this.backend.dockWindow();
+  }
+
   showHelp(): void {
     this.help.open();
   }
@@ -584,6 +615,7 @@ export class App implements CommandContext {
   }
 
   async quit(): Promise<void> {
+    await this.discardEmptyNote();
     await this.notes.flush();
     this.state.flush();
     await this.backend.quit();

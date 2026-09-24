@@ -5,6 +5,7 @@
 //     .history/<id>/…       versiones anteriores
 //     .trash/…              notas eliminadas (recuperables)
 //     .state.json           recientes y preferencias de la interfaz
+//     .window.json          ancho del panel (lo escribe window.rs)
 
 use std::{
     collections::{HashMap, HashSet},
@@ -54,6 +55,23 @@ impl Store {
         if let Some(handle) = self.loading.take() {
             for note in handle.join().unwrap_or_default() {
                 self.insert_loaded(note);
+            }
+            self.purge_empty();
+        }
+    }
+
+    /// Las notas sin título ni contenido no aportan nada: van a la papelera
+    /// (recuperables) en lugar de aparecer como «Sin título» en la lista.
+    fn purge_empty(&mut self) {
+        let empty: Vec<String> = self
+            .notes
+            .values()
+            .filter(|n| n.title.is_empty() && n.body.trim().is_empty())
+            .map(|n| n.id.clone())
+            .collect();
+        for id in empty {
+            if let Err(e) = self.delete(&id) {
+                eprintln!("quicknotes: no se pudo retirar la nota vacía {id}: {e}");
             }
         }
     }
@@ -359,6 +377,20 @@ mod tests {
         let mut reopened = Store::open(dir.clone()).unwrap();
         assert_eq!(reopened.list().len(), 2);
         assert_eq!(reopened.get("n1").unwrap().body, "otro");
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn empty_notes_go_to_trash_on_load() {
+        let dir = std::env::temp_dir().join(format!("qn-test-empty-{}", now_ms()));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("sin-titulo.md"), "---\nid: vacia\n---\n\n  \n").unwrap();
+        fs::write(dir.join("buena.md"), "---\nid: buena\n---\n\nhola").unwrap();
+        let mut store = Store::open(dir.clone()).unwrap();
+        let ids: Vec<String> = store.list().into_iter().map(|m| m.id).collect();
+        assert_eq!(ids, ["buena"]);
+        assert!(!dir.join("sin-titulo.md").exists());
+        assert!(store.restore("vacia").is_ok(), "sigue en la papelera");
         fs::remove_dir_all(dir).unwrap();
     }
 

@@ -1,21 +1,32 @@
-/* QuickNotes — tema oscuro, sin adornos. */
+/* QuickNotes — grafito violeta translúcido con acento morado. */
 
 :root {
-  --bg: #141519;
-  --panel: #18191e;
-  --raised: #1f2127;
-  --border: #26282f;
-  --text: #e4e5e9;
-  --muted: #8a8d98;
-  --faint: #5c5f6a;
-  --accent: #7aa2f7;
-  --accent-soft: rgba(122, 162, 247, 0.14);
-  --ok: #7fc59b;
-  --warn: #e0af68;
-  --err: #f7768e;
-  --radius: 6px;
-  --font-ui: system-ui, 'Cantarell', 'Noto Sans', 'DejaVu Sans', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'DejaVu Sans Mono', ui-monospace, monospace;
+  /* Opacidad del panel: 1 = opaco. La ventana es transparente (tauri.conf.json). */
+  --glass: 0.92;
+
+  --bg-top: rgba(26, 23, 36, var(--glass));
+  --bg-bottom: rgba(15, 13, 21, var(--glass));
+  --panel: rgba(255, 255, 255, 0.025);     /* capas sobre el fondo */
+  --raised: rgba(255, 255, 255, 0.055);
+  --surface: rgba(29, 26, 40, 0.97);       /* paneles flotantes: casi opacos */
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.12);
+
+  --text: #ebe8f4;                          /* blanco lavanda */
+  --muted: #a19cb4;
+  --faint: #6b6682;
+  --accent: #a78bfa;                        /* morado */
+  --accent-strong: #c4b5fd;
+  --accent-soft: rgba(167, 139, 250, 0.14);
+  --accent-line: rgba(167, 139, 250, 0.26);
+  --ok: #8fd4b0;
+  --warn: var(--accent);                    /* "editando…" también en morado */
+  --err: #f08aa0;
+
+  --radius: 7px;
+  --window-radius: 12px;
+  --font-ui: 'IBM Plex Sans', 'Inter', system-ui, 'Cantarell', 'Noto Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', 'Fira Code', 'DejaVu Sans Mono', ui-monospace, monospace;
   color-scheme: dark;
 }
 
@@ -24,17 +35,17 @@
 html, body {
   margin: 0;
   height: 100%;
-  background: var(--bg);
+  background: transparent;
   color: var(--text);
   font: 13px/1.45 var(--font-ui);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
-::selection { background: rgba(122, 162, 247, 0.32); }
+::selection { background: rgba(167, 139, 250, 0.35); color: #fff; }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: #2c2e36; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #3a3d47; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.09); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.16); }
 ::-webkit-scrollbar-track { background: transparent; }
 
 kbd {
@@ -52,19 +63,33 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 /* ── Layout ─────────────────────────────────────────────────────────── */
 
+/* El panel está pegado al borde derecho: se redondean solo las esquinas izquierdas. */
 .app {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100vh;
+  background: linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+  border: 1px solid var(--border-strong);
+  border-right: 0;
+  border-radius: var(--window-radius) 0 0 var(--window-radius);
+  overflow: hidden;
 }
 
+/* Flotante (el usuario la arrastró): todas las esquinas y todos los bordes. */
+.app.floating {
+  border-right: 1px solid var(--border-strong);
+  border-radius: var(--window-radius);
+}
+
+/* Panel vertical: nota actual arriba, las demás abajo. Al buscar, la lista crece. */
 .main {
   display: grid;
-  grid-template-columns: 290px minmax(0, 1fr);
+  grid-template-rows: minmax(140px, 1fr) minmax(0, 0.75fr);
   min-height: 0;
 }
 
-.app.sidebar-hidden:not(.searching) .main { grid-template-columns: 0 minmax(0, 1fr); }
+.app.searching .main { grid-template-rows: minmax(120px, 0.6fr) minmax(0, 1fr); }
+.app.sidebar-hidden:not(.searching) .main { grid-template-rows: minmax(0, 1fr) 0; }
 .app.sidebar-hidden:not(.searching) .list { visibility: hidden; border: 0; }
 
 /* ── Búsqueda ───────────────────────────────────────────────────────── */
@@ -79,7 +104,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   background: var(--panel);
 }
 
-.search-icon { color: var(--faint); display: flex; }
+.search-icon { color: var(--faint); display: flex; transition: color 0.15s; }
 .app.searching .search-icon { color: var(--accent); }
 
 .search-input {
@@ -98,15 +123,15 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .list {
   overflow-y: auto;
   overflow-x: hidden;
-  border-right: 1px solid var(--border);
+  border-top: 1px solid var(--border);
   background: var(--panel);
   padding: 6px;
 }
 
 .list-header {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--faint);
   padding: 10px 8px 4px;
@@ -121,9 +146,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   padding: 7px 8px;
   border-radius: var(--radius);
   cursor: default;
+  transition: background 0.12s;
 }
 .item:hover { background: var(--raised); }
-.item.selected { background: var(--accent-soft); }
+.item.selected { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
 .item.active .item-title { color: var(--accent); }
 
 .item-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
@@ -163,7 +189,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   flex-direction: column;
   min-height: 0;
   min-width: 0;
-  padding: 22px 32px 0;
+  padding: 16px 20px 0;
 }
 
 .editor-title {
@@ -171,7 +197,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   border: 0;
   outline: 0;
   color: var(--text);
-  font: 600 21px/1.3 var(--font-ui);
+  font: 500 20px/1.3 var(--font-ui);
+  letter-spacing: -0.01em;
   padding: 0;
 }
 .editor-title::placeholder { color: var(--faint); }
@@ -187,7 +214,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   font-size: 11.5px;
   color: var(--accent);
   background: var(--accent-soft);
-  padding: 1px 7px;
+  border: 1px solid var(--accent-line);
+  padding: 0 8px;
   border-radius: 10px;
   cursor: pointer;
 }
@@ -201,9 +229,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   border: 0;
   outline: 0;
   color: var(--text);
-  font: 14px/1.7 var(--font-mono);
+  font: 13.5px/1.65 var(--font-mono);
   tab-size: 2;
-  padding: 0 0 24px;
+  padding: 0 0 12px;
   caret-color: var(--accent);
 }
 .editor-body::placeholder { color: var(--faint); }
@@ -213,7 +241,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .statusbar {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   height: 28px;
   padding: 0 14px;
   border-top: 1px solid var(--border);
@@ -254,10 +282,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   align-items: center;
   max-width: min(640px, calc(100vw - 32px));
   padding: 8px 14px;
-  background: var(--raised);
-  border: 1px solid var(--border);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.12s, transform 0.12s;
@@ -274,7 +302,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   align-items: flex-start;
   justify-content: center;
   padding-top: 56px;
-  background: rgba(8, 9, 12, 0.6);
+  background: rgba(8, 7, 10, 0.55);
 }
 .modal[hidden] { display: none; }
 
@@ -283,10 +311,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   max-height: calc(100vh - 96px);
   display: flex;
   flex-direction: column;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
   outline: 0;
   overflow: hidden;
 }
@@ -301,12 +329,12 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 .history-body {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 0.8fr) minmax(0, 1fr);
   min-height: 0;
-  height: 380px;
+  height: min(460px, calc(100vh - 200px));
   border-top: 1px solid var(--border);
 }
-.history-list { overflow-y: auto; padding: 6px; border-right: 1px solid var(--border); }
+.history-list { overflow-y: auto; padding: 6px; border-bottom: 1px solid var(--border); }
 .history-list .item { flex-direction: column; gap: 0; }
 .history-list .item-title { flex: none; }
 .history-list .item-snippet { max-width: 100%; }
@@ -328,8 +356,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 }
 .help { overflow-y: auto; }
 
-@media (max-width: 640px) {
-  .main { grid-template-columns: 220px minmax(0, 1fr); }
-  .editor { padding: 16px 16px 0; }
-  .topbar-hint { display: none; }
+@media (max-width: 480px) {
+  .status-words { display: none; }
 }

@@ -2,7 +2,7 @@
 
 > Capturar ideas en segundos, sin distracciones.
 
-Notas rápidas para Debian/Linux. Pulsa **Ctrl+Espacio**, escribe y cierra: todo queda guardado como Markdown en `~/.quicknotes/`.
+Notas rápidas para Debian/Linux. Pulsa **Ctrl+Espacio** y aparece un panel en el borde derecho de la pantalla con tu última nota. Escribe y vuelve a pulsar Ctrl+Espacio: todo queda guardado como Markdown en `~/.quicknotes/`.
 
 - Tauri 2 + Rust + TypeScript sin framework (≈35 KB de JS).
 - Autoguardado, historial de versiones y recuperación ante cierres inesperados.
@@ -26,16 +26,20 @@ Notas rápidas para Debian/Linux. Pulsa **Ctrl+Espacio**, escribe y cierra: todo
 | Nota de hoy (`2026-09-24.md`) | `Ctrl T` |
 | Historial de cambios | `Ctrl H` |
 | Eliminar (con «Deshacer») | `Ctrl ⇧ ⌫` |
-| Mostrar / ocultar la lista | `Ctrl B` |
+| Mostrar / ocultar la lista de notas | `Ctrl B` |
 | Ocultar ventana | `Esc` / `Ctrl W` |
 | Salir del todo | `Ctrl Q` |
 | Ayuda | `F1` |
 
-**Flujo:** `Ctrl+Espacio` abre una nota en blanco con el cursor listo. Si vuelves antes de 90 s, sigues en la nota en la que estabas. La primera línea hace de título si no escribes uno.
+**Flujo:** `Ctrl+Espacio` abre la app como un panel lateral a la derecha, con todo el alto de la pantalla. Arriba está la última nota que usaste, con el cursor listo. Debajo, el resto de notas: fijadas, recientes y todas las demás. Mientras buscas, la lista crece. `Ctrl N` crea una nota nueva. La primera línea hace de título si no escribes uno.
+
+El panel es ligeramente translúcido (grafito violeta con acento morado) y **siempre queda por encima de las demás ventanas** hasta que lo cierras (Esc o Ctrl+Espacio). Recuerda el ancho que le des con el ratón, también entre reinicios.
+
+**Ventana movible:** arrástrala desde la barra de búsqueda o la barra de estado y pasa a flotar. Se vuelve a abrir donde la dejaste, con el mismo tamaño. `/dock` (o `/acoplar`) la devuelve al borde derecho. Una nota que se queda sin título ni contenido se envía sola a la papelera al salir de ella, así la lista no se llena de «Sin título».
 
 **Búsqueda:** `mongodb` busca en títulos, etiquetas y contenido. `#backend` filtra por etiqueta. `mongo #backend` combina ambas. Escribir solo `#` lista todas las etiquetas. Si nada coincide, `↵` crea una nota con ese título.
 
-**Comandos:** `/new [título]`, `/search`, `/pin`, `/delete`, `/today`, `/recent`, `/history`, `/tags`, `/folder`, `/sidebar`, `/autostart`, `/help`, `/hide`, `/quit`. También en español: `/nueva`, `/hoy`, `/fijar`, `/borrar`…
+**Comandos:** `/new [título]`, `/search`, `/pin`, `/delete`, `/today`, `/recent`, `/history`, `/tags`, `/folder`, `/sidebar`, `/dock`, `/autostart`, `/help`, `/hide`, `/quit`. También en español: `/nueva`, `/hoy`, `/fijar`, `/borrar`…
 
 **Editor:** Markdown en texto plano. `Tab` / `⇧ Tab` indentan, y `↵` continúa listas (`-`, `1.`, `- [ ]`).
 
@@ -48,7 +52,8 @@ Notas rápidas para Debian/Linux. Pulsa **Ctrl+Espacio**, escribe y cierra: todo
 ├── 2026-09-24.md
 ├── .history/<id>/…     ← versiones anteriores (1 cada 5 min de edición, máx. 50)
 ├── .trash/…            ← notas eliminadas
-└── .state.json         ← recientes y preferencias
+├── .state.json         ← recientes y preferencias
+└── .window.json        ← ancho del panel y posición si flota
 ```
 
 ```markdown

@@ -127,6 +127,9 @@ export function createMockBackend(): Backend {
     async shortcutStatus() {
       return { accelerator: 'ctrl+space', registered: true, wayland: false, error: null };
     },
+    async dockWindow() {
+      console.info('[mock] acoplar ventana');
+    },
     async hideWindow() {
       console.info('[mock] ocultar ventana');
     },

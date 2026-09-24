@@ -15,15 +15,16 @@
       {
         "label": "main",
         "title": "QuickNotes",
-        "width": 920,
-        "height": 580,
-        "minWidth": 520,
+        "width": 440,
+        "height": 700,
+        "minWidth": 340,
         "minHeight": 320,
-        "center": true,
+        "center": false,
         "decorations": false,
         "visible": false,
         "resizable": true,
-        "backgroundColor": "#141519"
+        "transparent": true,
+        "alwaysOnTop": true
       }
     ],
     "security": {
