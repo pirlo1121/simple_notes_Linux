@@ -33,7 +33,7 @@ Notas rápidas para Debian/Linux. Pulsa **Ctrl+Espacio** y aparece un panel en e
 
 **Flujo:** `Ctrl+Espacio` abre la app como un panel lateral a la derecha, con todo el alto de la pantalla. Arriba está la última nota que usaste, con el cursor listo. Debajo, el resto de notas: fijadas, recientes y todas las demás. Mientras buscas, la lista crece. `Ctrl N` crea una nota nueva. La primera línea hace de título si no escribes uno.
 
-El panel es ligeramente translúcido (grafito violeta con acento morado) y **siempre queda por encima de las demás ventanas** hasta que lo cierras (Esc o Ctrl+Espacio). Recuerda el ancho que le des con el ratón, también entre reinicios.
+El panel es ligeramente translúcido (grafito violeta con acento morado) y **siempre queda por encima de las demás ventanas** hasta que lo cierras (Esc o Ctrl+Espacio). Se redimensiona desde cualquier borde o esquina, y **siempre se abre con el último tamaño que le diste**, también entre reinicios.
 
 **Ventana movible:** arrástrala desde la barra de búsqueda o la barra de estado y pasa a flotar. Se vuelve a abrir donde la dejaste, con el mismo tamaño. `/dock` (o `/acoplar`) la devuelve al borde derecho. Una nota que se queda sin título ni contenido se envía sola a la papelera al salir de ella, así la lista no se llena de «Sin título».
 
@@ -53,7 +53,7 @@ El panel es ligeramente translúcido (grafito violeta con acento morado) y **sie
 ├── .history/<id>/…     ← versiones anteriores (1 cada 5 min de edición, máx. 50)
 ├── .trash/…            ← notas eliminadas
 ├── .state.json         ← recientes y preferencias
-└── .window.json        ← ancho del panel y posición si flota
+└── .window.json        ← tamaño del panel y posición si flota
 ```
 
 ```markdown

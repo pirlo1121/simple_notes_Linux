@@ -78,12 +78,17 @@ fn main() {
         })
         .on_window_event(|window, event| {
             // Cerrar = ocultar. Sin diálogos: el frontend guarda al recibir el evento.
-            if let WindowEvent::Moved(pos) = event {
-                window::on_moved(window, *pos);
+            if let WindowEvent::Moved(_) | WindowEvent::Resized(_) = event {
+                window::on_geometry_changed(window);
             }
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                window::remember_placement(window.outer_position(), window.outer_size(), window.scale_factor());
+                window::remember_placement(
+                    window.outer_position(),
+                    window.outer_size(),
+                    window.scale_factor(),
+                    window.available_monitors(),
+                );
                 let _ = window.emit(window::EVENT_HIDING, ());
                 let _ = window.hide();
             }

@@ -1,11 +1,18 @@
 // Gestión de la ventana principal y del atajo global.
 
-use std::sync::{Mutex, MutexGuard};
+use std::{
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Mutex, MutexGuard,
+    },
+    thread,
+    time::Duration,
+};
 
 use serde::{Deserialize, Serialize};
 use tauri::{
-    plugin::TauriPlugin, AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Runtime,
-    WebviewWindow, Window,
+    plugin::TauriPlugin, AppHandle, Emitter, Manager, Monitor, PhysicalPosition, PhysicalSize,
+    Runtime, WebviewWindow, Window,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
@@ -20,15 +27,22 @@ const DEFAULT_SHORTCUT: &str = "ctrl+space";
 /// Ancho inicial del panel acoplado (píxeles lógicos).
 const PANEL_WIDTH: f64 = 440.0;
 const PANEL_MIN_WIDTH: f64 = 340.0;
-/// Desplazamiento mínimo (px) para considerar que el usuario movió la ventana.
-const MOVE_THRESHOLD: i32 = 16;
+/// Tolerancia (px) para considerar que la ventana sigue pegada a la esquina
+/// superior derecha del área útil (= acoplada).
+const DOCK_TOLERANCE: i32 = 16;
+/// Pausa sin movimientos ni cambios de tamaño tras la que se guarda la colocación.
+const SAVE_DELAY: Duration = Duration::from_millis(600);
 const WINDOW_FILE: &str = ".window.json";
 
 // ── Colocación ──────────────────────────────────────────────────────────────
 //
 // Dos modos:
-//   · acoplada (por defecto): panel pegado al borde derecho, todo el alto útil.
-//   · flotante: si el usuario la arrastra, se recuerda posición y tamaño.
+//   · acoplada (por defecto): panel pegado a la esquina superior derecha del
+//     área útil. Se recuerdan ancho y alto (por defecto, todo el alto).
+//   · flotante: si el usuario la arrastra lejos de esa esquina, se recuerdan
+//     posición y tamaño.
+// El modo se deduce de dónde quedó la ventana, así que redimensionarla desde
+// el borde izquierdo (lo que también cambia su posición) no la hace flotar.
 // `/dock` vuelve a acoplarla. Todo se guarda en ~/.quicknotes/.window.json.
 //
 // El estado vive en memoria y no se le pregunta a GTK al mostrar: con la
@@ -46,14 +60,22 @@ struct Rect {
 struct Placement {
     /// Ancho del panel acoplado, en píxeles lógicos.
     width: f64,
+    /// Alto del panel acoplado en píxeles lógicos; `None` = todo el alto útil.
+    #[serde(default)]
+    height: Option<f64>,
     /// Posición y tamaño en píxeles físicos si flota; `None` si está acoplada.
     #[serde(default)]
     floating: Option<Rect>,
 }
 
-static PLACEMENT: Mutex<Placement> = Mutex::new(Placement { width: PANEL_WIDTH, floating: None });
-/// Dónde se colocó la ventana por última vez: para saber si el usuario la movió.
-static LAST_PLACED: Mutex<Option<Rect>> = Mutex::new(None);
+static PLACEMENT: Mutex<Placement> =
+    Mutex::new(Placement { width: PANEL_WIDTH, height: None, floating: None });
+/// Si la ventana llegó a colocarse alguna vez (antes, GTK da tamaños iniciales).
+static PLACED: Mutex<bool> = Mutex::new(false);
+/// Último modo enviado al frontend, para no repetir el evento en cada píxel.
+static DOCKED_SENT: Mutex<Option<bool>> = Mutex::new(None);
+/// Generación del guardado diferido: solo guarda el último de una ráfaga.
+static SAVE_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
@@ -135,7 +157,7 @@ pub fn summon<R: Runtime>(app: &AppHandle<R>) {
 }
 
 pub fn hide<R: Runtime>(w: &WebviewWindow<R>) {
-    remember_placement(w.outer_position(), w.outer_size(), w.scale_factor());
+    remember_placement(w.outer_position(), w.outer_size(), w.scale_factor(), w.available_monitors());
     let _ = w.emit(EVENT_HIDING, ());
     let _ = w.hide();
 }
@@ -161,44 +183,64 @@ fn save_placement(p: &Placement) {
     }
 }
 
-/// Guarda cómo dejó el usuario la ventana (al ocultarla o salir). Recibe los
-/// valores sueltos para servir tanto a `Window` como a `WebviewWindow`.
+/// Guarda cómo dejó el usuario la ventana. Recibe los valores sueltos para
+/// servir tanto a `Window` como a `WebviewWindow`.
 pub fn remember_placement(
     pos: tauri::Result<PhysicalPosition<i32>>,
     size: tauri::Result<PhysicalSize<u32>>,
     scale: tauri::Result<f64>,
+    monitors: tauri::Result<Vec<Monitor>>,
 ) {
     let (Ok(pos), Ok(size), Ok(scale)) = (pos, size, scale) else { return };
-    let Some(last) = *lock(&LAST_PLACED) else { return }; // nunca se mostró
+    if !*lock(&PLACED) {
+        return;
+    }
     let current = Rect { x: pos.x, y: pos.y, width: size.width, height: size.height };
     let mut p = lock(&PLACEMENT);
-    if p.floating.is_some() || moved(&last, &current) {
-        p.floating = Some(current);
-    } else {
-        let width = (size.width as f64 / scale).round();
-        if width >= PANEL_MIN_WIDTH {
-            p.width = width;
+    match dock_area(&current, &monitors.unwrap_or_default()) {
+        Some(area) => {
+            p.floating = None;
+            let width = (size.width as f64 / scale).round();
+            if width >= PANEL_MIN_WIDTH {
+                p.width = width;
+            }
+            let full = size.height as i32 + DOCK_TOLERANCE >= area.size.height as i32;
+            p.height = (!full).then(|| (size.height as f64 / scale).round());
         }
+        None => p.floating = Some(current),
     }
     save_placement(&p);
 }
 
-/// Al arrastrar la ventana: pasa a flotar (el frontend redondea todas las esquinas).
-pub fn on_moved<R: Runtime>(w: &Window<R>, pos: PhysicalPosition<i32>) {
-    let Some(last) = *lock(&LAST_PLACED) else { return };
-    let mut p = lock(&PLACEMENT);
-    if p.floating.is_some() {
+/// Al mover o redimensionar: avisa al frontend si cambió el modo (para las
+/// esquinas) y guarda en cuanto el usuario suelta, sin esperar a ocultar.
+pub fn on_geometry_changed<R: Runtime>(w: &Window<R>) {
+    if !*lock(&PLACED) || !w.is_visible().unwrap_or(false) {
         return;
     }
-    let size = w.outer_size().unwrap_or(PhysicalSize::new(last.width, last.height));
-    let current = Rect { x: pos.x, y: pos.y, width: size.width, height: size.height };
-    if moved(&last, &current) {
-        p.floating = Some(current);
-        let _ = w.emit(EVENT_PLACEMENT, false);
+    if let (Ok(pos), Ok(size), Ok(monitors)) = (w.outer_position(), w.outer_size(), w.available_monitors()) {
+        let rect = Rect { x: pos.x, y: pos.y, width: size.width, height: size.height };
+        send_docked(w, dock_area(&rect, &monitors).is_some());
+    }
+    let generation = SAVE_GENERATION.fetch_add(1, Ordering::Relaxed) + 1;
+    let w = w.clone();
+    thread::spawn(move || {
+        thread::sleep(SAVE_DELAY);
+        if SAVE_GENERATION.load(Ordering::Relaxed) == generation && w.is_visible().unwrap_or(false) {
+            remember_placement(w.outer_position(), w.outer_size(), w.scale_factor(), w.available_monitors());
+        }
+    });
+}
+
+fn send_docked<E: Emitter<R>, R: Runtime>(emitter: &E, docked: bool) {
+    let mut sent = lock(&DOCKED_SENT);
+    if *sent != Some(docked) {
+        *sent = Some(docked);
+        let _ = emitter.emit(EVENT_PLACEMENT, docked);
     }
 }
 
-/// `/dock`: vuelve a acoplar la ventana al borde derecho.
+/// `/dock`: vuelve a acoplar la ventana (conserva el ancho y alto del panel).
 pub fn dock<R: Runtime>(w: &WebviewWindow<R>) {
     {
         let mut p = lock(&PLACEMENT);
@@ -206,11 +248,17 @@ pub fn dock<R: Runtime>(w: &WebviewWindow<R>) {
         save_placement(&p);
     }
     let docked = place(w);
-    let _ = w.emit(EVENT_PLACEMENT, docked);
+    send_docked(w, docked);
 }
 
-fn moved(a: &Rect, b: &Rect) -> bool {
-    (a.x - b.x).abs() > MOVE_THRESHOLD || (a.y - b.y).abs() > MOVE_THRESHOLD
+/// Área útil del monitor en cuya esquina superior derecha está pegada la
+/// ventana, si lo está.
+fn dock_area(r: &Rect, monitors: &[Monitor]) -> Option<tauri::PhysicalRect<i32, u32>> {
+    monitors.iter().map(|m| *m.work_area()).find(|a| {
+        let right = r.x + r.width as i32;
+        let area_right = a.position.x + a.size.width as i32;
+        (right - area_right).abs() <= DOCK_TOLERANCE && (r.y - a.position.y).abs() <= DOCK_TOLERANCE
+    })
 }
 
 fn show<R: Runtime>(w: &WebviewWindow<R>) {
@@ -218,12 +266,14 @@ fn show<R: Runtime>(w: &WebviewWindow<R>) {
     let docked = place(w);
     let _ = w.show();
     place(w); // algunos gestores de ventanas recolocan al mapear
+    *lock(&PLACED) = true;
     // Siempre por encima de las demás ventanas hasta que el usuario la cierre.
     let _ = w.set_always_on_top(true);
     let _ = w.set_focus();
     #[cfg(target_os = "linux")]
     crate::x11::activate_own_window_soon();
-    let _ = w.emit(EVENT_PLACEMENT, docked);
+    *lock(&DOCKED_SENT) = None; // el frontend puede haberse recargado: reenviar
+    send_docked(w, docked);
     let _ = w.emit(EVENT_SUMMONED, ());
 }
 
@@ -238,8 +288,6 @@ fn place<R: Runtime>(w: &WebviewWindow<R>) -> bool {
             None => return true,
         },
     };
-    // Antes de mover: así el evento Moved que provoca no cuenta como arrastre.
-    *lock(&LAST_PLACED) = Some(rect);
     let _ = w.set_size(PhysicalSize::new(rect.width, rect.height));
     let _ = w.set_position(PhysicalPosition::new(rect.x, rect.y));
     docked
@@ -255,12 +303,18 @@ fn docked_rect<R: Runtime>(w: &WebviewWindow<R>) -> Option<Rect> {
         .or_else(|| w.current_monitor().ok().flatten())
         .or_else(|| w.primary_monitor().ok().flatten())?;
     let area = monitor.work_area();
-    let width = ((lock(&PLACEMENT).width * monitor.scale_factor()) as u32).min(area.size.width);
+    let (width, height) = {
+        let p = lock(&PLACEMENT);
+        (p.width, p.height)
+    };
+    let scale = monitor.scale_factor();
+    let width = ((width * scale) as u32).min(area.size.width);
+    let height = height.map_or(area.size.height, |h| ((h * scale) as u32).min(area.size.height));
     Some(Rect {
         x: area.position.x + area.size.width as i32 - width as i32,
         y: area.position.y,
         width,
-        height: area.size.height,
+        height,
     })
 }
 

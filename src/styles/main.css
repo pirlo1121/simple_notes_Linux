@@ -359,3 +359,18 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 @media (max-width: 480px) {
   .status-words { display: none; }
 }
+
+/* ── Asas para redimensionar (la ventana no tiene bordes del sistema) ── */
+
+.resize-handle { position: fixed; z-index: 100; }
+.resize-n, .resize-s { left: 14px; right: 14px; height: 5px; cursor: ns-resize; }
+.resize-e, .resize-w { top: 14px; bottom: 14px; width: 5px; cursor: ew-resize; }
+.resize-n { top: 0; }
+.resize-s { bottom: 0; }
+.resize-e { right: 0; }
+.resize-w { left: 0; }
+.resize-ne, .resize-nw, .resize-se, .resize-sw { width: 14px; height: 14px; }
+.resize-ne { top: 0; right: 0; cursor: nesw-resize; }
+.resize-sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.resize-nw { top: 0; left: 0; cursor: nwse-resize; }
+.resize-se { bottom: 0; right: 0; cursor: nwse-resize; }

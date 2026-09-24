@@ -135,7 +135,7 @@ pub async fn dock_window(app: AppHandle) -> CmdResult<()> {
 pub async fn quit_app(app: AppHandle) {
     // Oculta, GTK puede informar un tamaño viejo: solo se guarda si está visible.
     if let Some(w) = app.get_webview_window(window::MAIN).filter(|w| w.is_visible().unwrap_or(false)) {
-        window::remember_placement(w.outer_position(), w.outer_size(), w.scale_factor());
+        window::remember_placement(w.outer_position(), w.outer_size(), w.scale_factor(), w.available_monitors());
     }
     app.exit(0);
 }

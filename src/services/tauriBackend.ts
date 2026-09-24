@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { Backend, BackendEvent } from './backend';
 
 export const tauriBackend: Backend = {
@@ -22,6 +23,7 @@ export const tauriBackend: Backend = {
   shortcutStatus: () => invoke('shortcut_status'),
   hideWindow: () => invoke('hide_window'),
   dockWindow: () => invoke('dock_window'),
+  startResize: (direction) => getCurrentWindow().startResizeDragging(direction),
   quit: () => invoke('quit_app'),
   on: (event: BackendEvent, fn) => listen(`qn://${event}`, (e) => fn(e.payload)),
 };

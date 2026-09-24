@@ -16,6 +16,7 @@ import { HelpPanel } from './components/HelpPanel';
 import { HistoryPanel } from './components/HistoryPanel';
 import type { Modal } from './components/Modal';
 import { isSelectable, NoteList, type ListItem } from './components/NoteList';
+import { ResizeHandles } from './components/ResizeHandles';
 import { SearchBar } from './components/SearchBar';
 import { StatusBar } from './components/StatusBar';
 import { Toast } from './components/Toast';
@@ -102,6 +103,7 @@ export class App implements CommandContext {
       this.toast.el,
       this.history.el,
       this.help.el,
+      new ResizeHandles((direction) => void this.backend.startResize(direction)).el,
     );
     host.replaceChildren(this.root);
 

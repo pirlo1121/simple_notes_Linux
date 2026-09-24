@@ -3,6 +3,10 @@
 
 import type { HistoryEntry, NoteDoc, NoteInput, NoteMeta, PersistedState, ShortcutStatus } from '../types';
 
+export type ResizeDirection =
+  | 'North' | 'South' | 'East' | 'West'
+  | 'NorthEast' | 'NorthWest' | 'SouthEast' | 'SouthWest';
+
 export type BackendEvent = 'summoned' | 'hiding' | 'quit' | 'placement';
 
 export interface Backend {
@@ -28,6 +32,8 @@ export interface Backend {
   hideWindow(): Promise<void>;
   /** Vuelve a acoplar la ventana al borde derecho. */
   dockWindow(): Promise<void>;
+  /** Empieza a redimensionar la ventana desde un borde (con el botón pulsado). */
+  startResize(direction: ResizeDirection): Promise<void>;
   quit(): Promise<void>;
   /** `placement` lleva `true` si la ventana está acoplada, `false` si flota. */
   on(event: BackendEvent, fn: (payload: unknown) => void): Promise<() => void>;
