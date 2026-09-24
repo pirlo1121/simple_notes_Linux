@@ -21,7 +21,7 @@ Notas rápidas para Debian/Linux. Pulsa **Ctrl+Espacio** y aparece un panel en e
 | Paleta de comandos | `Ctrl ⇧ P` o escribir `/` en la búsqueda |
 | Nota anterior | `Ctrl Tab` |
 | Recientes | `Ctrl E` |
-| Abrir nota fijada 1…9 | `Ctrl 1…9` |
+| Abrir la nota número 1…9 de la lista | `Ctrl 1…9` |
 | Fijar / desfijar | `Ctrl D` |
 | Nota de hoy (`2026-09-24.md`) | `Ctrl T` |
 | Historial de cambios | `Ctrl H` |
@@ -31,11 +31,11 @@ Notas rápidas para Debian/Linux. Pulsa **Ctrl+Espacio** y aparece un panel en e
 | Salir del todo | `Ctrl Q` |
 | Ayuda | `F1` |
 
-**Flujo:** `Ctrl+Espacio` abre la app como un panel lateral a la derecha, con todo el alto de la pantalla. Arriba está la última nota que usaste, con el cursor listo. Debajo, el resto de notas: fijadas, recientes y todas las demás. Mientras buscas, la lista crece. `Ctrl N` crea una nota nueva. La primera línea hace de título si no escribes uno.
+**Flujo:** `Ctrl+Espacio` abre la app como un panel lateral a la derecha, con todo el alto de la pantalla. Arriba está la última nota que usaste, con el cursor listo. Debajo, el resto de notas en una lista compacta de títulos numerados: `Ctrl 5` abre la nota 5. La numeración es estable: primero las fijadas y luego de la más nueva a la más antigua. Abrir o editar una nota no cambia los números. La nota abierta también aparece en la lista, con fondo oscuro. Al buscar, la lista mantiene su tamaño. `Ctrl N` crea una nota nueva. La primera línea hace de título si no escribes uno.
 
 El panel es ligeramente translúcido (grafito violeta con acento morado) y **siempre queda por encima de las demás ventanas** hasta que lo cierras (Esc o Ctrl+Espacio). Se redimensiona desde cualquier borde o esquina, y **siempre se abre con el último tamaño que le diste**, también entre reinicios.
 
-**Ventana movible:** arrástrala desde la barra de búsqueda o la barra de estado y pasa a flotar. Se vuelve a abrir donde la dejaste, con el mismo tamaño. `/dock` (o `/acoplar`) la devuelve al borde derecho. Una nota que se queda sin título ni contenido se envía sola a la papelera al salir de ella, así la lista no se llena de «Sin título».
+**Ventana movible:** arrástrala desde cualquier sitio salvo el título y el texto de la nota (ahí arrastrar selecciona texto). En la lista y el buscador, un clic funciona como siempre y basta con mover el ratón con el botón pulsado para arrastrar. Al moverla pasa a flotar. Se vuelve a abrir donde la dejaste, con el mismo tamaño. `/dock` (o `/acoplar`) la devuelve al borde derecho. Una nota que se queda sin título ni contenido se envía sola a la papelera al salir de ella, así la lista no se llena de «Sin título».
 
 **Búsqueda:** `mongodb` busca en títulos, etiquetas y contenido. `#backend` filtra por etiqueta. `mongo #backend` combina ambas. Escribir solo `#` lista todas las etiquetas. Si nada coincide, `↵` crea una nota con ese título.
 

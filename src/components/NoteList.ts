@@ -1,11 +1,11 @@
 import type { Command } from '../commands/registry';
 import type { NoteMeta } from '../types';
 import { h, kbd } from '../utils/dom';
-import { formatRelative } from '../utils/time';
 
 export type ListItem =
   | { kind: 'header'; label: string }
-  | { kind: 'note'; note: NoteMeta; hotkey?: string }
+  /** `number`: posición fija de la nota; se abre con Ctrl + número (1–9). */
+  | { kind: 'note'; note: NoteMeta; number?: number }
   | { kind: 'create'; title: string }
   | { kind: 'command'; command: Command; args: string }
   | { kind: 'tag'; tag: string; count: number }
@@ -69,24 +69,15 @@ export class NoteList {
           h('span', { class: 'item-count' }, String(item.count)),
         );
       case 'note': {
+        // Una sola línea: número de atajo, chincheta y título.
         const n = item.note;
         const active = n.id === activeId ? ' active' : '';
+        const hint = item.number ? `Ctrl ${item.number} · ${n.file}` : n.file;
         return h(
           'div',
-          { class: cls('item-note' + active), 'data-index': index, role: 'option', title: n.file },
-          h(
-            'span',
-            { class: 'item-main' },
-            h(
-              'span',
-              { class: 'item-title' },
-              n.pinned ? h('span', { class: 'pin' }, '📌') : null,
-              n.title,
-            ),
-            n.snippet ? h('span', { class: 'item-snippet' }, n.snippet) : null,
-            n.tags.length ? h('span', { class: 'item-tags' }, n.tags.map((t) => `#${t}`).join(' ')) : null,
-          ),
-          h('span', { class: 'item-side' }, item.hotkey ? kbd(item.hotkey) : formatRelative(n.updated)),
+          { class: cls('item-note' + active), 'data-index': index, role: 'option', title: hint },
+          h('span', { class: 'item-num' }, item.number ? String(item.number) : ''),
+          h('span', { class: 'item-title' }, n.pinned ? h('span', { class: 'pin' }, '📌') : null, n.title),
         );
       }
     }

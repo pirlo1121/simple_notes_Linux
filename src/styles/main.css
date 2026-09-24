@@ -81,14 +81,13 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   border-radius: var(--window-radius);
 }
 
-/* Panel vertical: nota actual arriba, las demás abajo. Al buscar, la lista crece. */
+/* Panel vertical: nota actual arriba, lista de notas abajo (tamaño fijo, también al buscar). */
 .main {
   display: grid;
-  grid-template-rows: minmax(140px, 1fr) minmax(0, 0.75fr);
+  grid-template-rows: minmax(160px, 1fr) minmax(0, 0.36fr);
   min-height: 0;
 }
 
-.app.searching .main { grid-template-rows: minmax(120px, 0.6fr) minmax(0, 1fr); }
 .app.sidebar-hidden:not(.searching) .main { grid-template-rows: minmax(0, 1fr) 0; }
 .app.sidebar-hidden:not(.searching) .list { visibility: hidden; border: 0; }
 
@@ -149,8 +148,15 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   transition: background 0.12s;
 }
 .item:hover { background: var(--raised); }
-.item.selected { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
-.item.active .item-title { color: var(--accent); }
+/* Nota en uso: fondo oscuro. */
+.item.active { background: rgba(0, 0, 0, 0.42); }
+.item.active .item-title { color: var(--text); font-weight: 500; }
+.item.active .item-num { color: var(--accent); }
+
+/* Selección con el teclado: solo mientras se usa el buscador; si no, el
+   primer elemento parecería siempre marcado. */
+.app.searching .item.selected { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+.app.searching .item.active.selected { background: rgba(0, 0, 0, 0.42); }
 
 .item-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .item-title {
@@ -181,6 +187,19 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .item-create .item-title, .item-tag .item-title { font-weight: 400; }
 .item-create strong { font-weight: 600; }
 .pin { font-size: 11px; margin-right: 5px; }
+
+/* Notas de la lista: una línea, solo título y número de atajo. */
+.item-note { align-items: center; gap: 6px; padding: 4px 8px; }
+.item-note .item-title { font-weight: 400; }
+.app.searching .item-note.selected .item-title, .item-note:hover .item-title { color: var(--text); }
+.item-num {
+  width: 12px;
+  flex: none;
+  text-align: right;
+  font: 11px var(--font-mono);
+  color: var(--faint);
+}
+.app.searching .item-note.selected .item-num { color: var(--accent); }
 
 /* ── Editor ─────────────────────────────────────────────────────────── */
 

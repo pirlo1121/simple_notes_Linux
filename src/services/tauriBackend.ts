@@ -23,6 +23,7 @@ export const tauriBackend: Backend = {
   shortcutStatus: () => invoke('shortcut_status'),
   hideWindow: () => invoke('hide_window'),
   dockWindow: () => invoke('dock_window'),
+  startDragging: () => getCurrentWindow().startDragging(),
   startResize: (direction) => getCurrentWindow().startResizeDragging(direction),
   quit: () => invoke('quit_app'),
   on: (event: BackendEvent, fn) => listen(`qn://${event}`, (e) => fn(e.payload)),

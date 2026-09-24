@@ -8,7 +8,7 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl ⇧ P', 'Paleta de comandos'],
   ['Ctrl Tab', 'Volver a la nota anterior'],
   ['Ctrl E', 'Notas recientes'],
-  ['Ctrl 1…9', 'Abrir nota fijada'],
+  ['Ctrl 1…9', 'Abrir la nota con ese número en la lista'],
   ['Ctrl D', 'Fijar / desfijar'],
   ['Ctrl T', 'Nota de hoy'],
   ['Ctrl H', 'Historial de cambios'],

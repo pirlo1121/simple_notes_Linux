@@ -32,6 +32,8 @@ export interface Backend {
   hideWindow(): Promise<void>;
   /** Vuelve a acoplar la ventana al borde derecho. */
   dockWindow(): Promise<void>;
+  /** Empieza a mover la ventana (con el botón del ratón pulsado). */
+  startDragging(): Promise<void>;
   /** Empieza a redimensionar la ventana desde un borde (con el botón pulsado). */
   startResize(direction: ResizeDirection): Promise<void>;
   quit(): Promise<void>;

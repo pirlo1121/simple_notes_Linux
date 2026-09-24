@@ -23,14 +23,14 @@ export class SearchBar {
       autocomplete: 'off',
       'aria-label': 'Buscar',
     });
-    const icon = h('span', { class: 'search-icon', 'data-tauri-drag-region': true });
+    const icon = h('span', { class: 'search-icon' });
     icon.innerHTML = ICON;
     this.el = h(
       'header',
-      { class: 'topbar', 'data-tauri-drag-region': true },
+      { class: 'topbar' },
       icon,
       this.input,
-      h('span', { class: 'topbar-hint', 'data-tauri-drag-region': true }, kbd('Ctrl K')),
+      h('span', { class: 'topbar-hint' }, kbd('Ctrl K')),
     );
 
     this.input.addEventListener('input', () => opts.onInput(this.input.value));

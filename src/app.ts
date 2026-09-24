@@ -23,6 +23,7 @@ import { Toast } from './components/Toast';
 import { createStore, type Store } from './hooks/createStore';
 import { useDebounce } from './hooks/useDebounce';
 import { useHotkeys } from './hooks/useHotkeys';
+import { useWindowDrag } from './hooks/useWindowDrag';
 import type { Backend } from './services/backend';
 import type { NotesService } from './services/notes';
 import type { AppStateStore } from './storage/appState';
@@ -31,7 +32,6 @@ import { h } from './utils/dom';
 import { displayTitle, wordCount } from './utils/text';
 import { todayTitle } from './utils/time';
 
-const RECENT_IN_LIST = 5;
 const LIST_LIMIT = 300;
 
 interface UIState {
@@ -114,6 +114,7 @@ export class App implements CommandContext {
     this.notes.onSaved.on((meta) => this.onSaved(meta));
 
     this.bindKeys();
+    useWindowDrag(this.root, () => void this.backend.startDragging());
     this.renderLayout();
   }
 
@@ -247,7 +248,8 @@ export class App implements CommandContext {
     } else {
       const results = await this.backend.search(q, 200);
       if (seq !== this.searchSeq) return; // llegó una consulta más nueva
-      items = results.map((note) => ({ kind: 'note', note }));
+      const numbers = this.numbers();
+      items = results.map((note) => ({ kind: 'note', note, number: numbers.get(note.id) }));
       const exact = results.some((n) => n.title.toLowerCase() === q.toLowerCase());
       if (!exact && !q.startsWith('#')) items.push({ kind: 'create', title: q });
     }
@@ -262,66 +264,47 @@ export class App implements CommandContext {
     this.ui.set({ items, selected });
   }
 
-  private pinnedNotes(): NoteMeta[] {
-    return [...this.index.values()]
-      .filter((n) => n.pinned)
-      .sort((a, b) => a.title.localeCompare(b.title, 'es', { sensitivity: 'base' }));
+  /**
+   * Todas las notas en un orden estable, que define su número (Ctrl + 1–9):
+   * fijadas primero (por título) y luego de la más nueva a la más antigua.
+   * Abrir o editar una nota no cambia los números; crear una nueva, sí.
+   */
+  private numberedNotes(): NoteMeta[] {
+    const byTitle = (a: NoteMeta, b: NoteMeta) => a.title.localeCompare(b.title, 'es', { sensitivity: 'base' });
+    const all = [...this.index.values()];
+    return [
+      ...all.filter((n) => n.pinned).sort(byTitle),
+      ...all.filter((n) => !n.pinned).sort((a, b) => b.created - a.created),
+    ];
+  }
+
+  private numbers(): Map<string, number> {
+    return new Map(this.numberedNotes().slice(0, 9).map((n, i) => [n.id, i + 1]));
   }
 
   private recentIds(): string[] {
     return this.state.recent.filter((id) => this.index.has(id));
   }
 
-  /** Lista bajo el editor sin búsqueda: fijadas, recientes y el resto (sin la nota abierta). */
+  /**
+   * Lista bajo el editor sin búsqueda: todas las notas, solo títulos y
+   * numeradas. La nota abierta también aparece, resaltada (clase .active).
+   */
   private defaultItems(): ListItem[] {
-    const items: ListItem[] = [];
-    const currentId = this.notes.current?.id;
-    const shown = new Set<string>(currentId ? [currentId] : []);
-    // El número del atajo Ctrl 1…9 sale de la lista completa de fijadas,
-    // aunque la nota abierta no se muestre.
-    const pinned = this.pinnedNotes()
-      .map((note, i) => ({ note, hotkey: i < 9 ? `Ctrl ${i + 1}` : undefined }))
-      .filter(({ note }) => note.id !== currentId);
-    if (pinned.length) {
-      items.push({ kind: 'header', label: 'Fijadas' });
-      for (const { note, hotkey } of pinned) {
-        items.push({ kind: 'note', note, hotkey });
-        shown.add(note.id);
-      }
-    }
-    const recent = this.recentIds()
-      .filter((id) => !shown.has(id))
-      .slice(0, RECENT_IN_LIST);
-    if (recent.length) {
-      items.push({ kind: 'header', label: 'Recientes' });
-      for (const id of recent) {
-        items.push({ kind: 'note', note: this.index.get(id)! });
-        shown.add(id);
-      }
-    }
-    const rest = [...this.index.values()]
-      .filter((n) => !shown.has(n.id))
-      .sort((a, b) => b.updated - a.updated)
-      .slice(0, LIST_LIMIT);
-    if (rest.length) {
-      items.push({ kind: 'header', label: 'Todas' });
-      for (const note of rest) items.push({ kind: 'note', note });
-    }
-    if (!items.length) {
-      items.push({
-        kind: 'empty',
-        label: this.index.size ? 'No hay más notas. Ctrl N para crear otra.' : 'Aún no hay notas. Escribe: se guarda solo.',
-      });
-    }
+    const items: ListItem[] = this.numberedNotes()
+      .slice(0, LIST_LIMIT)
+      .map((note, i): ListItem => ({ kind: 'note', note, number: i < 9 ? i + 1 : undefined }));
+    if (!items.length) items.push({ kind: 'empty', label: 'Aún no hay notas. Escribe: se guarda solo.' });
     return items;
   }
 
   private recentItems(): ListItem[] {
     const ids = this.recentIds();
     if (!ids.length) return [{ kind: 'empty', label: 'Aún no has abierto ninguna nota' }];
+    const numbers = this.numbers();
     return [
       { kind: 'header', label: 'Abiertas recientemente' },
-      ...ids.map((id): ListItem => ({ kind: 'note', note: this.index.get(id)! })),
+      ...ids.map((id): ListItem => ({ kind: 'note', note: this.index.get(id)!, number: numbers.get(id) })),
     ];
   }
 
@@ -628,8 +611,9 @@ export class App implements CommandContext {
     if (prev) void this.openNote(prev);
   }
 
-  private openPinned(n: number): void {
-    const note = this.pinnedNotes()[n - 1];
+  /** Ctrl + número: abre la nota con ese número en la lista. */
+  private openNumbered(n: number): void {
+    const note = this.numberedNotes()[n - 1];
     if (note) void this.openNote(note.id);
   }
 
@@ -649,8 +633,8 @@ export class App implements CommandContext {
       { capture: true },
     );
 
-    const pinnedKeys = Object.fromEntries(
-      Array.from({ length: 9 }, (_, i) => [`ctrl+${i + 1}`, () => this.openPinned(i + 1)]),
+    const numberKeys = Object.fromEntries(
+      Array.from({ length: 9 }, (_, i) => [`ctrl+${i + 1}`, () => this.openNumbered(i + 1)]),
     );
     useHotkeys(window, {
       'ctrl+n': () => this.newNote(),
@@ -669,7 +653,7 @@ export class App implements CommandContext {
       escape: () => this.hide(),
       'f1, ctrl+/': () => this.showHelp(),
       'f5, ctrl+r': () => {}, // evitar recargas accidentales del webview
-      ...pinnedKeys,
+      ...numberKeys,
     });
   }
 

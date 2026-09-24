@@ -40,7 +40,8 @@ src/                         Frontend (TypeScript, sin framework)
 ├── types.ts                 Tipos compartidos con Rust (NoteMeta, NoteDoc…)
 ├── components/              Vistas: crean su DOM y exponen métodos render()
 │   ├── SearchBar.ts         Barra superior (zona de arrastre de la ventana)
-│   ├── NoteList.ts          Lista bajo el editor: las demás notas, resultados, comandos
+│   ├── NoteList.ts          Lista compacta bajo el editor: títulos numerados, resultados, comandos
+│   ├── ResizeHandles.ts     Asas invisibles para redimensionar
 │   ├── Editor.ts            Título + textarea, listas, etiquetas en vivo
 │   ├── StatusBar.ts         Estado de guardado, fechas y palabras
 │   ├── Toast.ts             Avisos con acción (Deshacer)
@@ -50,6 +51,7 @@ src/                         Frontend (TypeScript, sin framework)
 ├── hooks/                   Primitivas reutilizables
 │   ├── createStore.ts       Estado reactivo mínimo (get/set/select)
 │   ├── useDebounce.ts       Debounce con maxWait
+│   ├── useWindowDrag.ts     Mover la ventana desde cualquier zona sin texto
 │   └── useHotkeys.ts        Atajos de teclado declarativos
 ├── services/
 │   ├── backend.ts           Contrato con Rust y fábrica
@@ -104,7 +106,7 @@ El frontend descarta respuestas obsoletas con un número de secuencia.
 1. Escritura atómica: un corte deja la versión anterior o la nueva, nunca una a medias.
 2. Diario en localStorage en cada pulsación: si el proceso muere antes del guardado (ventana de 400 ms), el siguiente arranque guarda el borrador.
 
-**Panel lateral.** Una columna estrecha aprovecha el alto de la pantalla y no tapa el trabajo principal. El editor ocupa la parte de arriba y la lista la de abajo; al buscar, la proporción se invierte. El tamaño, y la posición si flota, se guardan en `.window.json`. Rust los escribe al ocultar o salir y 600 ms después de cada movimiento o cambio de tamaño. El modo se deduce de dónde quedó la ventana: está acoplada si su esquina superior derecha coincide con la del área útil, así que encogerla desde el borde izquierdo no la hace flotar. Como WebKit ocupa toda la ventana y se queda los clics de los bordes, el redimensionado lo inician asas invisibles del DOM (`ResizeHandles`) con `startResizeDragging`. El frontend recibe `qn://placement` (acoplada o no) para redondear todas las esquinas cuando flota. No va en `.state.json`, que es del frontend: dos escritores sobre el mismo fichero se pisarían.
+**Panel lateral.** Una columna estrecha aprovecha el alto de la pantalla y no tapa el trabajo principal. El editor ocupa la parte de arriba y la lista compacta la de abajo, con la nota en uso resaltada; al buscar, las proporciones no cambian. El tamaño, y la posición si flota, se guardan en `.window.json`. Rust los escribe al ocultar o salir y 600 ms después de cada movimiento o cambio de tamaño. El modo se deduce de dónde quedó la ventana: está acoplada si su esquina superior derecha coincide con la del área útil, así que encogerla desde el borde izquierdo no la hace flotar. Como WebKit ocupa toda la ventana y se queda los clics de los bordes, el redimensionado lo inician asas invisibles del DOM (`ResizeHandles`) con `startResizeDragging`. El frontend recibe `qn://placement` (acoplada o no) para redondear todas las esquinas cuando flota. No va en `.state.json`, que es del frontend: dos escritores sobre el mismo fichero se pisarían.
 
 **Notas vacías.** Una nota sin título ni contenido no se crea nunca en disco. Si una nota existente se vacía, `NotesService.discardIfEmpty` la manda a la papelera al salir de ella: al cambiar de nota, crear otra, ocultar o salir. Por seguridad, `Store::purge_empty` hace lo mismo al arrancar. Siempre es recuperable.
 

@@ -25,14 +25,12 @@ export class StatusBar {
   private words: HTMLElement;
 
   constructor(onHelp: () => void) {
-    // data-tauri-drag-region en cada hijo: la zona de arrastre no se hereda.
-    const drag = { 'data-tauri-drag-region': true };
-    this.state = h('span', { class: 'status-state', ...drag });
-    this.meta = h('span', { class: 'status-meta', ...drag });
-    this.words = h('span', { class: 'status-words', ...drag });
+    this.state = h('span', { class: 'status-state' });
+    this.meta = h('span', { class: 'status-meta' });
+    this.words = h('span', { class: 'status-words' });
     const help = h('button', { class: 'status-help', type: 'button', title: 'Atajos (F1)' }, kbd('Ctrl ⇧ P'));
     help.addEventListener('click', onHelp);
-    this.el = h('footer', { class: 'statusbar', ...drag }, this.state, this.meta, h('span', { class: 'spacer', ...drag }), this.words, help);
+    this.el = h('footer', { class: 'statusbar' }, this.state, this.meta, h('span', { class: 'spacer' }), this.words, help);
   }
 
   render(info: StatusInfo): void {

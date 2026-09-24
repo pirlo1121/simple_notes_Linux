@@ -130,6 +130,7 @@ export function createMockBackend(): Backend {
     async dockWindow() {
       console.info('[mock] acoplar ventana');
     },
+    async startDragging() {},
     async startResize() {},
     async hideWindow() {
       console.info('[mock] ocultar ventana');
