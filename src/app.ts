@@ -1,0 +1,670 @@
+// Orquestador: conecta componentes, servicios y comandos.
+//
+//   ┌ SearchBar ───────────────────────────────┐
+//   │ NoteList (resultados/comandos) │ Editor   │
+//   └ StatusBar ───────────────────────────────┘
+
+import { builtinCommands } from './commands/builtin';
+import { CommandRegistry, type CommandContext } from './commands/registry';
+import { Editor } from './components/Editor';
+import { HelpPanel } from './components/HelpPanel';
+import { HistoryPanel } from './components/HistoryPanel';
+import type { Modal } from './components/Modal';
+import { isSelectable, NoteList, type ListItem } from './components/NoteList';
+import { SearchBar } from './components/SearchBar';
+import { StatusBar } from './components/StatusBar';
+import { Toast } from './components/Toast';
+import { createStore, type Store } from './hooks/createStore';
+import { useDebounce } from './hooks/useDebounce';
+import { useHotkeys } from './hooks/useHotkeys';
+import type { Backend } from './services/backend';
+import type { NotesService } from './services/notes';
+import type { AppStateStore } from './storage/appState';
+import type { NoteMeta } from './types';
+import { h } from './utils/dom';
+import { displayTitle, wordCount } from './utils/text';
+import { todayTitle } from './utils/time';
+
+/** Si se vuelve a abrir la ventana antes de este tiempo, se sigue en la misma nota. */
+const RESUME_WINDOW_MS = 90_000;
+const RECENT_IN_LIST = 5;
+const LIST_LIMIT = 300;
+
+interface UIState {
+  query: string;
+  items: ListItem[];
+  selected: number;
+  sidebar: boolean;
+  searchFocused: boolean;
+  recentOnly: boolean;
+}
+
+export class App implements CommandContext {
+  private index = new Map<string, NoteMeta>();
+  private commands = new CommandRegistry().register(...builtinCommands);
+  private ui: Store<UIState>;
+  private root!: HTMLElement;
+  private search!: SearchBar;
+  private list!: NoteList;
+  private editor!: Editor;
+  private status!: StatusBar;
+  private toast = new Toast();
+  private history = new HistoryPanel();
+  private help = new HelpPanel(() => this.notesDir);
+  private notesDir = '~/.quicknotes';
+  private searchSeq = 0;
+  private lastActivity = 0;
+  private statusFrame = 0;
+  private refreshSoon = useDebounce(() => void this.runQuery(false), 120);
+
+  constructor(
+    private backend: Backend,
+    private notes: NotesService,
+    private state: AppStateStore,
+  ) {
+    this.ui = createStore<UIState>({
+      query: '',
+      items: [],
+      selected: -1,
+      sidebar: state.get('sidebar') ?? true,
+      searchFocused: false,
+      recentOnly: false,
+    });
+  }
+
+  // ── Arranque ────────────────────────────────────────────────────────────
+
+  mount(host: HTMLElement): void {
+    this.search = new SearchBar({
+      onInput: (q) => this.setQuery(q, false),
+      onKey: (e) => this.onSearchKey(e),
+      onFocusChange: (focused) => this.ui.set({ searchFocused: focused }),
+    });
+    this.list = new NoteList((i) => this.pick(i));
+    this.editor = new Editor({
+      onChange: (patch) => {
+        this.notes.update(patch);
+        this.lastActivity = Date.now();
+        this.scheduleStatus();
+      },
+      onTagClick: (tag) => this.focusSearch(`#${tag} `),
+      onEscapeTitle: () => this.editor.focusBody(),
+    });
+    this.status = new StatusBar(() => this.showHelp());
+
+    this.root = h(
+      'div',
+      { class: 'app' },
+      this.search.el,
+      h('main', { class: 'main' }, this.list.el, this.editor.el),
+      this.status.el,
+      this.toast.el,
+      this.history.el,
+      this.help.el,
+    );
+    host.replaceChildren(this.root);
+
+    this.ui.select((s) => s.items, () => this.renderList());
+    this.ui.select((s) => s.selected, () => this.renderList());
+    this.ui.select((s) => `${s.sidebar}|${s.searchFocused}|${s.query !== ''}`, () => this.renderLayout());
+    this.notes.onStatus.on(() => this.renderStatus());
+    this.notes.onSaved.on((meta) => this.onSaved(meta));
+
+    this.bindKeys();
+    this.renderLayout();
+  }
+
+  async start(): Promise<void> {
+    const [metas, shortcut, dir] = await Promise.all([
+      this.backend.listNotes(),
+      this.backend.shortcutStatus().catch(() => null),
+      this.backend.notesDir().catch(() => this.notesDir),
+    ]);
+    this.notesDir = dir;
+    for (const m of metas) this.index.set(m.id, m);
+
+    this.newNote();
+    void this.runQuery();
+
+    this.backend.on('summoned', () => void this.onSummoned());
+    this.backend.on('hiding', () => this.flushAll());
+    this.backend.on('quit', () => this.quit());
+    window.addEventListener('blur', () => this.flushAll());
+    window.addEventListener('beforeunload', () => this.flushAll());
+
+    await this.firstRunSetup(shortcut?.registered ?? true, shortcut?.wayland ?? false);
+  }
+
+  private async firstRunSetup(shortcutOk: boolean, wayland: boolean): Promise<void> {
+    if (!this.state.get('autostartInitialized')) {
+      this.state.set('autostartInitialized', true);
+      try {
+        await this.backend.setAutostart(true);
+        this.toast.show('Inicio automático activado: Ctrl+Espacio funcionará siempre. /autostart para cambiarlo.', undefined, 6000);
+      } catch (e) {
+        console.error('autostart', e);
+      }
+    }
+    if ((!shortcutOk || wayland) && !this.state.get('shortcutHintShown')) {
+      this.state.set('shortcutHintShown', true);
+      this.toast.show(
+        'Ctrl+Espacio no está disponible para la app. Ejecuta: sh /usr/share/quicknotes/setup-shortcut.sh',
+        undefined,
+        10000,
+      );
+    }
+  }
+
+  recovered(count: number): void {
+    if (count) this.toast.show(`Recuperado${count > 1 ? 's' : ''} ${count} cambio${count > 1 ? 's' : ''} sin guardar tras un cierre inesperado`);
+  }
+
+  // ── Eventos de ventana ──────────────────────────────────────────────────
+
+  private async onSummoned(): Promise<void> {
+    this.history.close();
+    this.help.close();
+    const resume = this.notes.isEmpty() || Date.now() - this.lastActivity < RESUME_WINDOW_MS;
+    if (resume) {
+      this.editor.focusBody();
+    } else {
+      this.setQuery('');
+      this.newNote();
+    }
+    try {
+      if (await this.backend.syncDisk()) await this.reloadFromDisk();
+    } catch (e) {
+      console.error('sync', e);
+    }
+  }
+
+  /** Aplica cambios hechos por otros programas en ~/.quicknotes. */
+  private async reloadFromDisk(): Promise<void> {
+    const metas = await this.backend.listNotes();
+    this.index = new Map(metas.map((m) => [m.id, m]));
+    const cur = this.notes.current;
+    if (cur?.persisted && !this.notes.dirty) {
+      const doc = await this.backend.getNote(cur.id);
+      if (!doc) this.newNote();
+      else if (doc.body !== cur.body || doc.rawTitle !== cur.title || doc.pinned !== cur.pinned) {
+        this.notes.open(doc);
+        this.editor.load(this.notes.current!);
+      }
+    }
+    void this.runQuery(false);
+    this.renderStatus();
+  }
+
+  private onSaved(meta: NoteMeta): void {
+    const isNew = !this.index.has(meta.id);
+    this.index.set(meta.id, meta);
+    if (isNew && this.notes.current?.id === meta.id) this.state.touchRecent(meta.id);
+    this.refreshSoon();
+    this.renderStatus();
+  }
+
+  private flushAll(): void {
+    void this.notes.flush();
+    this.state.flush();
+  }
+
+  // ── Búsqueda y lista ────────────────────────────────────────────────────
+
+  private setQuery(query: string, updateInput = true): void {
+    if (updateInput) this.search.value = query;
+    this.ui.set({ query, recentOnly: false });
+    void this.runQuery();
+  }
+
+  /** Recalcula la lista según la consulta. `resetSelection` = volver al primero. */
+  private async runQuery(resetSelection = true): Promise<void> {
+    const { query, recentOnly } = this.ui.get();
+    const q = query.trim();
+    const seq = ++this.searchSeq;
+    let items: ListItem[];
+
+    if (q.startsWith('/')) {
+      const matches = this.commands.match(q);
+      items = matches.length
+        ? matches.map(({ command, args }) => ({ kind: 'command', command, args }))
+        : [{ kind: 'empty', label: 'Ningún comando coincide' }];
+    } else if (/^#\S*$/.test(q)) {
+      items = this.tagItems(q.slice(1).toLowerCase());
+    } else if (!q) {
+      items = recentOnly ? this.recentItems() : this.defaultItems();
+    } else {
+      const results = await this.backend.search(q, 200);
+      if (seq !== this.searchSeq) return; // llegó una consulta más nueva
+      items = results.map((note) => ({ kind: 'note', note }));
+      const exact = results.some((n) => n.title.toLowerCase() === q.toLowerCase());
+      if (!exact && !q.startsWith('#')) items.push({ kind: 'create', title: q });
+    }
+    this.setItems(items, resetSelection);
+  }
+
+  private setItems(items: ListItem[], resetSelection: boolean): void {
+    let selected = this.ui.get().selected;
+    if (resetSelection || !items[selected] || !isSelectable(items[selected])) {
+      selected = items.findIndex(isSelectable);
+    }
+    this.ui.set({ items, selected });
+  }
+
+  private pinnedNotes(): NoteMeta[] {
+    return [...this.index.values()]
+      .filter((n) => n.pinned)
+      .sort((a, b) => a.title.localeCompare(b.title, 'es', { sensitivity: 'base' }));
+  }
+
+  private recentIds(): string[] {
+    return this.state.recent.filter((id) => this.index.has(id));
+  }
+
+  private defaultItems(): ListItem[] {
+    const items: ListItem[] = [];
+    const shown = new Set<string>();
+    const pinned = this.pinnedNotes();
+    if (pinned.length) {
+      items.push({ kind: 'header', label: 'Fijadas' });
+      pinned.forEach((note, i) => {
+        items.push({ kind: 'note', note, hotkey: i < 9 ? `Ctrl ${i + 1}` : undefined });
+        shown.add(note.id);
+      });
+    }
+    const recent = this.recentIds()
+      .filter((id) => !shown.has(id))
+      .slice(0, RECENT_IN_LIST);
+    if (recent.length) {
+      items.push({ kind: 'header', label: 'Recientes' });
+      for (const id of recent) {
+        items.push({ kind: 'note', note: this.index.get(id)! });
+        shown.add(id);
+      }
+    }
+    const rest = [...this.index.values()]
+      .filter((n) => !shown.has(n.id))
+      .sort((a, b) => b.updated - a.updated)
+      .slice(0, LIST_LIMIT);
+    if (rest.length) {
+      items.push({ kind: 'header', label: 'Todas' });
+      for (const note of rest) items.push({ kind: 'note', note });
+    }
+    if (!this.index.size) {
+      items.push({ kind: 'empty', label: 'Aún no hay notas. Escribe: se guarda solo.' });
+    }
+    return items;
+  }
+
+  private recentItems(): ListItem[] {
+    const ids = this.recentIds();
+    if (!ids.length) return [{ kind: 'empty', label: 'Aún no has abierto ninguna nota' }];
+    return [
+      { kind: 'header', label: 'Abiertas recientemente' },
+      ...ids.map((id): ListItem => ({ kind: 'note', note: this.index.get(id)! })),
+    ];
+  }
+
+  private tagItems(prefix: string): ListItem[] {
+    const counts = new Map<string, number>();
+    for (const n of this.index.values()) for (const t of n.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
+    const tags = [...counts]
+      .filter(([t]) => t.startsWith(prefix))
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    if (!tags.length) return [{ kind: 'empty', label: prefix ? `Sin etiquetas «#${prefix}…»` : 'Aún no hay etiquetas. Escribe #algo en una nota.' }];
+    return [{ kind: 'header', label: 'Etiquetas' }, ...tags.map(([tag, count]): ListItem => ({ kind: 'tag', tag, count }))];
+  }
+
+  private move(delta: number): void {
+    const { items, selected } = this.ui.get();
+    let i = selected;
+    let target = selected;
+    for (let steps = Math.abs(delta); steps > 0; ) {
+      i += Math.sign(delta);
+      if (i < 0 || i >= items.length) break;
+      if (isSelectable(items[i])) {
+        target = i;
+        steps--;
+      }
+    }
+    if (target !== selected) this.ui.set({ selected: target });
+  }
+
+  private pick(index: number): void {
+    const item = this.ui.get().items[index];
+    if (!item) return;
+    switch (item.kind) {
+      case 'note':
+        void this.openNote(item.note.id);
+        break;
+      case 'create':
+        this.setQuery('');
+        this.newNote(item.title);
+        break;
+      case 'command':
+        this.setQuery('');
+        this.editor.focusBody();
+        item.command.run(this, item.args);
+        break;
+      case 'tag':
+        this.focusSearch(`#${item.tag} `);
+        break;
+    }
+  }
+
+  private onSearchKey(e: KeyboardEvent): boolean {
+    const { query, selected, items } = this.ui.get();
+    switch (e.key) {
+      case 'ArrowDown':
+        this.move(1);
+        return true;
+      case 'ArrowUp':
+        this.move(-1);
+        return true;
+      case 'PageDown':
+        this.move(8);
+        return true;
+      case 'PageUp':
+        this.move(-8);
+        return true;
+      case 'Enter': {
+        const q = query.trim();
+        if (e.ctrlKey && q && !q.startsWith('/')) {
+          this.setQuery('');
+          this.newNote(q);
+        } else if (selected >= 0) {
+          this.pick(selected);
+        } else if (q && !q.startsWith('/') && !items.length) {
+          this.setQuery('');
+          this.newNote(q);
+        }
+        return true;
+      }
+      case 'Escape':
+        if (query) this.setQuery('');
+        else this.editor.focusBody();
+        return true;
+      case 'Tab':
+        if (e.shiftKey) return false;
+        this.editor.focusBody();
+        return true;
+    }
+    return false;
+  }
+
+  // ── Comandos (CommandContext) ───────────────────────────────────────────
+
+  newNote(title = ''): void {
+    const cur = this.notes.current;
+    if (cur && !cur.persisted && this.notes.isEmpty()) {
+      if (title) this.notes.update({ title });
+    } else {
+      this.notes.openBlank(title);
+    }
+    this.editor.load(this.notes.current!);
+    this.lastActivity = Date.now();
+    this.renderList();
+    this.renderStatus();
+    this.editor.focusBody();
+  }
+
+  async openNote(id: string): Promise<void> {
+    this.lastActivity = Date.now();
+    if (this.notes.current?.id === id) {
+      this.editor.focusBody();
+      return;
+    }
+    await this.notes.flush(); // que getNote lea lo último guardado
+    const doc = await this.backend.getNote(id);
+    if (!doc) {
+      this.index.delete(id);
+      this.state.forget(id);
+      void this.runQuery(false);
+      this.toast.show('Esa nota ya no existe');
+      return;
+    }
+    this.notes.open(doc);
+    this.editor.load(this.notes.current!);
+    this.state.touchRecent(id);
+    this.renderList();
+    this.renderStatus();
+    this.editor.focusBody();
+  }
+
+  focusSearch(query?: string): void {
+    if (query !== undefined) this.setQuery(query);
+    this.search.focus(query === undefined);
+  }
+
+  async togglePin(): Promise<void> {
+    const cur = this.notes.current;
+    if (!cur) return;
+    const pinned = !cur.pinned;
+    if (!cur.persisted) {
+      if (this.notes.isEmpty()) {
+        this.toast.show('Escribe algo antes de fijar la nota');
+        return;
+      }
+      this.notes.update({ pinned });
+    } else {
+      await this.notes.flush();
+      try {
+        const meta = await this.backend.setPinned(cur.id, pinned);
+        cur.pinned = pinned;
+        this.index.set(meta.id, meta);
+      } catch (e) {
+        this.toast.show(`No se pudo fijar: ${e}`);
+        return;
+      }
+    }
+    this.toast.show(pinned ? '📌 Nota fijada' : 'Nota desfijada');
+    void this.runQuery(false);
+  }
+
+  async deleteCurrent(): Promise<void> {
+    const cur = this.notes.current;
+    if (!cur) return;
+    await this.notes.flush();
+    if (!cur.persisted) {
+      this.newNote();
+      return;
+    }
+    const { id } = cur;
+    const title = displayTitle(cur.title, cur.body);
+    try {
+      await this.backend.deleteNote(id);
+    } catch (e) {
+      this.toast.show(`No se pudo eliminar: ${e}`);
+      return;
+    }
+    this.index.delete(id);
+    this.state.forget(id);
+    this.newNote();
+    void this.runQuery(false);
+    this.toast.show(
+      `«${title}» movida a la papelera`,
+      {
+        label: 'Deshacer',
+        run: async () => {
+          try {
+            const meta = await this.backend.restoreNote(id);
+            this.index.set(meta.id, meta);
+            await this.openNote(id);
+            void this.runQuery(false);
+          } catch (e) {
+            this.toast.show(`No se pudo restaurar: ${e}`);
+          }
+        },
+      },
+      6000,
+    );
+  }
+
+  openToday(): void {
+    const title = todayTitle();
+    const existing = [...this.index.values()].find((n) => n.title === title);
+    if (existing) void this.openNote(existing.id);
+    else this.newNote(title);
+  }
+
+  showRecent(): void {
+    this.search.value = '';
+    this.ui.set({ query: '', recentOnly: true });
+    void this.runQuery();
+    this.search.focus();
+  }
+
+  async showHistory(): Promise<void> {
+    const cur = this.notes.current;
+    if (!cur?.persisted) {
+      this.toast.show('Esta nota todavía no tiene historial');
+      return;
+    }
+    await this.notes.flush();
+    const { id } = cur;
+    const entries = await this.backend.listHistory(id);
+    this.history.open({
+      title: displayTitle(cur.title, cur.body),
+      entries,
+      load: async (stamp) => (await this.backend.readHistory(id, stamp)).body,
+      restore: (stamp) => void this.restoreVersion(id, stamp),
+    });
+  }
+
+  private async restoreVersion(id: string, stamp: number): Promise<void> {
+    try {
+      const version = await this.backend.readHistory(id, stamp);
+      await this.notes.flush();
+      const pinned = this.notes.current?.id === id ? this.notes.current.pinned : version.pinned;
+      // snapshot=true: la versión que se sustituye también queda en el historial.
+      await this.backend.saveNote({ id, title: version.rawTitle, body: version.body, pinned }, true);
+      const doc = await this.backend.getNote(id);
+      if (doc && this.notes.current?.id === id) {
+        this.notes.open(doc);
+        this.editor.load(this.notes.current);
+        this.index.set(doc.id, doc);
+      }
+      void this.runQuery(false);
+      this.renderStatus();
+      this.toast.show('Versión restaurada. La anterior se guardó en el historial.');
+    } catch (e) {
+      this.toast.show(`No se pudo restaurar: ${e}`);
+    }
+  }
+
+  showTags(): void {
+    this.focusSearch('#');
+  }
+
+  openFolder(): void {
+    this.backend.openFolder().catch((e) => this.toast.show(`No se pudo abrir la carpeta: ${e}`));
+  }
+
+  async toggleAutostart(): Promise<void> {
+    try {
+      const enabled = await this.backend.setAutostart(!(await this.backend.getAutostart()));
+      this.toast.show(enabled ? 'Inicio automático activado' : 'Inicio automático desactivado');
+    } catch (e) {
+      this.toast.show(`No se pudo cambiar el inicio automático: ${e}`);
+    }
+  }
+
+  toggleSidebar(): void {
+    const sidebar = !this.ui.get().sidebar;
+    this.ui.set({ sidebar });
+    this.state.set('sidebar', sidebar);
+  }
+
+  showHelp(): void {
+    this.help.open();
+  }
+
+  hide(): void {
+    this.flushAll();
+    void this.backend.hideWindow();
+  }
+
+  async quit(): Promise<void> {
+    await this.notes.flush();
+    this.state.flush();
+    await this.backend.quit();
+  }
+
+  private openPrevious(): void {
+    const prev = this.recentIds().find((id) => id !== this.notes.current?.id);
+    if (prev) void this.openNote(prev);
+  }
+
+  private openPinned(n: number): void {
+    const note = this.pinnedNotes()[n - 1];
+    if (note) void this.openNote(note.id);
+  }
+
+  // ── Teclado ─────────────────────────────────────────────────────────────
+
+  private bindKeys(): void {
+    // Con un panel abierto, las teclas van solo al panel.
+    window.addEventListener(
+      'keydown',
+      (e) => {
+        const modal: Modal | null = this.history.isOpen ? this.history : this.help.isOpen ? this.help : null;
+        if (!modal) return;
+        modal.handleKey(e);
+        e.preventDefault();
+        e.stopPropagation();
+      },
+      { capture: true },
+    );
+
+    const pinnedKeys = Object.fromEntries(
+      Array.from({ length: 9 }, (_, i) => [`ctrl+${i + 1}`, () => this.openPinned(i + 1)]),
+    );
+    useHotkeys(window, {
+      'ctrl+n': () => this.newNote(),
+      'ctrl+k, ctrl+p, ctrl+l': () => this.focusSearch(),
+      'ctrl+shift+p': () => this.focusSearch('/'),
+      'ctrl+d': () => void this.togglePin(),
+      'ctrl+shift+backspace, ctrl+shift+delete': () => void this.deleteCurrent(),
+      'ctrl+t': () => this.openToday(),
+      'ctrl+e': () => this.showRecent(),
+      'ctrl+h': () => void this.showHistory(),
+      'ctrl+b': () => this.toggleSidebar(),
+      'ctrl+tab': () => this.openPrevious(),
+      'ctrl+s': () => this.flushAll(),
+      'ctrl+w': () => this.hide(),
+      'ctrl+q': () => void this.quit(),
+      escape: () => this.hide(),
+      'f1, ctrl+/': () => this.showHelp(),
+      'f5, ctrl+r': () => {}, // evitar recargas accidentales del webview
+      ...pinnedKeys,
+    });
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────
+
+  private renderLayout(): void {
+    const { sidebar, searchFocused, query } = this.ui.get();
+    this.root.classList.toggle('sidebar-hidden', !sidebar);
+    this.root.classList.toggle('searching', searchFocused || query !== '');
+  }
+
+  private renderList(): void {
+    const { items, selected } = this.ui.get();
+    this.list.render(items, selected, this.notes.current?.id ?? null);
+  }
+
+  private scheduleStatus(): void {
+    cancelAnimationFrame(this.statusFrame);
+    this.statusFrame = requestAnimationFrame(() => this.renderStatus());
+  }
+
+  private renderStatus(): void {
+    const cur = this.notes.current;
+    this.status.render({
+      status: this.notes.status,
+      file: cur?.file ?? '',
+      created: cur?.persisted ? cur.created : null,
+      updated: cur?.persisted ? cur.updated : null,
+      words: cur ? wordCount(cur.title) + wordCount(this.editor.text) : 0,
+    });
+  }
+}
