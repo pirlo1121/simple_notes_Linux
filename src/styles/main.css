@@ -26,6 +26,9 @@
   --active: rgba(0, 0, 0, 0.45);            /* nota en uso: fondo oscuro */
   --title: #e6d2ae;                         /* título de la nota: beige arena */
 
+  /* Tamaño del texto de las notas: lo ajusta Ctrl +/− (app.ts). El título escala con él. */
+  --note-size: 13.5px;
+
   --radius: 7px;
   --window-radius: 12px;
   --font-display: 'Cormorant Garamond', 'EB Garamond', Georgia, 'DejaVu Serif', serif;
@@ -234,7 +237,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   border: 0;
   outline: 0;
   color: var(--title);
-  font: 700 27px/1.2 var(--font-display);
+  font: 700 calc(var(--note-size) * 2)/1.2 var(--font-display);
   letter-spacing: 0.01em;
   /* Cormorant llega solo a 700: un trazo fino del mismo color la engrosa más. */
   -webkit-text-stroke: 0.45px var(--title);
@@ -269,7 +272,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   border: 0;
   outline: 0;
   color: var(--text);
-  font: 13.5px/1.65 var(--font-mono);
+  font: var(--note-size)/1.65 var(--font-mono);
   tab-size: 2;
   padding: 0 0 12px;
   caret-color: var(--accent);

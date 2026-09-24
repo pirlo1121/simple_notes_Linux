@@ -12,6 +12,7 @@ export interface CommandContext {
   openFolder(): void;
   toggleAutostart(): void;
   toggleSidebar(): void;
+  setNoteFontSize(arg: string): void;
   dockWindow(): void;
   showHelp(): void;
   hide(): void;

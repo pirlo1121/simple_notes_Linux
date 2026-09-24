@@ -14,6 +14,8 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl H', 'Historial de cambios'],
   ['Ctrl ⇧ ⌫', 'Eliminar nota (se puede deshacer)'],
   ['Ctrl B', 'Mostrar / ocultar la lista'],
+  ['Ctrl + · Ctrl −', 'Texto de las notas más grande / más pequeño'],
+  ['Ctrl 0', 'Tamaño de texto normal'],
   ['Esc · Ctrl W', 'Ocultar ventana (todo queda guardado)'],
   ['Ctrl Q', 'Salir del todo'],
 ];

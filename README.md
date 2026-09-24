@@ -27,6 +27,8 @@ Notas rápidas para Debian/Linux. Pulsa **Ctrl+Espacio** y aparece un panel en e
 | Historial de cambios | `Ctrl H` |
 | Eliminar (con «Deshacer») | `Ctrl ⇧ ⌫`, o la papelera de cada nota en la lista |
 | Mostrar / ocultar la lista de notas | `Ctrl B` |
+| Texto de las notas más grande / más pequeño | `Ctrl +` / `Ctrl −` (o `Ctrl` + rueda del ratón) |
+| Tamaño de texto normal | `Ctrl 0` |
 | Ocultar ventana | `Esc` / `Ctrl W` |
 | Salir del todo | `Ctrl Q` |
 | Ayuda | `F1` |
@@ -39,7 +41,7 @@ El panel es ligeramente translúcido, con un tema «tinta y marfil»: negro neut
 
 **Búsqueda:** `mongodb` busca en títulos, etiquetas y contenido. `#backend` filtra por etiqueta. `mongo #backend` combina ambas. Escribir solo `#` lista todas las etiquetas. Si nada coincide, `↵` crea una nota con ese título.
 
-**Comandos:** `/new [título]`, `/search`, `/pin`, `/delete`, `/today`, `/recent`, `/history`, `/tags`, `/folder`, `/sidebar`, `/dock`, `/autostart`, `/help`, `/hide`, `/quit`. También en español: `/nueva`, `/hoy`, `/fijar`, `/borrar`…
+**Comandos:** `/new [título]`, `/search`, `/pin`, `/delete`, `/today`, `/recent`, `/history`, `/tags`, `/folder`, `/sidebar`, `/text [+|-|px|reset]`, `/dock`, `/autostart`, `/help`, `/hide`, `/quit`. También en español: `/nueva`, `/texto`, `/hoy`, `/fijar`, `/borrar`…
 
 **Editor:** Markdown en texto plano. `Tab` / `⇧ Tab` indentan, y `↵` continúa listas (`-`, `1.`, `- [ ]`).
 

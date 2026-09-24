@@ -1,5 +1,5 @@
 // Atajos de teclado: { 'ctrl+shift+p': handler }.
-// Orden canónico de modificadores: ctrl, alt, shift.
+// Orden canónico de modificadores: ctrl, alt, shift. La tecla «+» se escribe 'plus'.
 
 export type HotkeyHandler = (e: KeyboardEvent) => void | false;
 export type HotkeyMap = Record<string, HotkeyHandler>;
@@ -15,6 +15,7 @@ function normalize(combo: string): string {
 export function eventCombo(e: KeyboardEvent): string {
   let key = e.key.toLowerCase();
   if (key === ' ') key = 'space';
+  if (key === '+') key = 'plus'; // '+' es también el separador de las combinaciones
   // Con Ctrl algunas distribuciones de teclado cambian e.key; e.code es estable.
   if (/^Key[A-Z]$/.test(e.code)) key = e.code.slice(3).toLowerCase();
   if (/^Digit\d$/.test(e.code)) key = e.code.slice(5);

@@ -40,6 +40,8 @@ export interface ShortcutStatus {
 export interface PersistedState {
   recent?: string[];
   sidebar?: boolean;
+  /** Tamaño del texto de las notas, en px. */
+  noteFontSize?: number;
   autostartInitialized?: boolean;
   shortcutHintShown?: boolean;
 }

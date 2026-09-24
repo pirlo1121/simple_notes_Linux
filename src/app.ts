@@ -33,6 +33,7 @@ import { displayTitle, wordCount } from './utils/text';
 import { todayTitle } from './utils/time';
 
 const LIST_LIMIT = 300;
+const NOTE_FONT = { default: 13.5, min: 10.5, max: 28.5, step: 1 };
 
 interface UIState {
   query: string;
@@ -116,6 +117,7 @@ export class App implements CommandContext {
     this.notes.onStatus.on(() => this.renderStatus());
     this.notes.onSaved.on((meta) => this.onSaved(meta));
 
+    this.applyNoteFontSize(this.state.get('noteFontSize') ?? NOTE_FONT.default);
     this.bindKeys();
     useWindowDrag(this.root, () => void this.backend.startDragging());
     this.renderLayout();
@@ -596,6 +598,33 @@ export class App implements CommandContext {
     this.state.set('sidebar', sidebar);
   }
 
+  /** "+", "-", "reset" o un tamaño en px; sin argumento muestra el actual. */
+  setNoteFontSize(arg: string): void {
+    const current = this.state.get('noteFontSize') ?? NOTE_FONT.default;
+    const a = arg.trim().toLowerCase();
+    let size = current;
+    if (a === '+' || a === 'mas' || a === 'más') size += NOTE_FONT.step;
+    else if (a === '-' || a === 'menos') size -= NOTE_FONT.step;
+    else if (a === '0' || a === 'reset' || a === 'normal') size = NOTE_FONT.default;
+    else if (a) {
+      const px = Number.parseFloat(a.replace(',', '.'));
+      if (!Number.isFinite(px)) {
+        this.toast.show('Uso: /texto 16 · /texto + · /texto - · /texto reset');
+        return;
+      }
+      size = px;
+    }
+    size = Math.min(NOTE_FONT.max, Math.max(NOTE_FONT.min, Math.round(size * 2) / 2));
+    this.applyNoteFontSize(size);
+    this.state.set('noteFontSize', size);
+    const hint = size === NOTE_FONT.default ? ' (normal)' : ' · Ctrl 0 para volver al normal';
+    this.toast.show(`Texto de las notas: ${size} px${hint}`, undefined, 1800);
+  }
+
+  private applyNoteFontSize(size: number): void {
+    document.documentElement.style.setProperty('--note-size', `${size}px`);
+  }
+
   dockWindow(): void {
     void this.backend.dockWindow();
   }
@@ -643,6 +672,17 @@ export class App implements CommandContext {
       { capture: true },
     );
 
+    // Ctrl + rueda del ratón: cambiar el tamaño del texto.
+    window.addEventListener(
+      'wheel',
+      (e) => {
+        if (!e.ctrlKey || e.deltaY === 0) return;
+        e.preventDefault();
+        this.setNoteFontSize(e.deltaY < 0 ? '+' : '-');
+      },
+      { passive: false },
+    );
+
     const numberKeys = Object.fromEntries(
       Array.from({ length: 9 }, (_, i) => [`ctrl+${i + 1}`, () => this.openNumbered(i + 1)]),
     );
@@ -660,6 +700,10 @@ export class App implements CommandContext {
       'ctrl+s': () => this.flushAll(),
       'ctrl+w': () => this.hide(),
       'ctrl+q': () => void this.quit(),
+      // «+» con o sin Shift según la distribución (en EE. UU. está en la tecla «=»).
+      'ctrl+plus, ctrl+shift+plus, ctrl+=, ctrl+shift+=': () => this.setNoteFontSize('+'),
+      'ctrl+-, ctrl+shift+-': () => this.setNoteFontSize('-'),
+      'ctrl+0': () => this.setNoteFontSize('reset'),
       escape: () => this.hide(),
       'f1, ctrl+/': () => this.showHelp(),
       'f5, ctrl+r': () => {}, // evitar recargas accidentales del webview
