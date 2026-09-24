@@ -1,31 +1,35 @@
-/* QuickNotes — grafito violeta translúcido con acento morado. */
+/* QuickNotes — «tinta y marfil»: negro neutro translúcido, texto marfil y
+   acentos en plata. Títulos en serif editorial (Cormorant Garamond). */
 
 :root {
   /* Opacidad del panel: 1 = opaco. La ventana es transparente (tauri.conf.json). */
-  --glass: 0.92;
+  --glass: 0.96;
 
-  --bg-top: rgba(26, 23, 36, var(--glass));
-  --bg-bottom: rgba(15, 13, 21, var(--glass));
+  --bg-top: rgba(24, 24, 27, var(--glass));
+  --bg-bottom: rgba(13, 13, 15, var(--glass));
   --panel: rgba(255, 255, 255, 0.025);     /* capas sobre el fondo */
   --raised: rgba(255, 255, 255, 0.055);
-  --surface: rgba(29, 26, 40, 0.97);       /* paneles flotantes: casi opacos */
+  --surface: rgba(26, 26, 29, 0.97);       /* paneles flotantes: casi opacos */
   --border: rgba(255, 255, 255, 0.07);
   --border-strong: rgba(255, 255, 255, 0.12);
 
-  --text: #ebe8f4;                          /* blanco lavanda */
-  --muted: #a19cb4;
-  --faint: #6b6682;
-  --accent: #a78bfa;                        /* morado */
-  --accent-strong: #c4b5fd;
-  --accent-soft: rgba(167, 139, 250, 0.14);
-  --accent-line: rgba(167, 139, 250, 0.26);
-  --ok: #8fd4b0;
-  --warn: var(--accent);                    /* "editando…" también en morado */
-  --err: #f08aa0;
+  --text: #ede9e1;                          /* marfil */
+  --muted: #a4a2a0;
+  --faint: #6c6b6a;
+  --accent: #d8dbe0;                        /* platino */
+  --accent-strong: #f4f5f7;
+  --accent-soft: rgba(255, 255, 255, 0.07);
+  --accent-line: rgba(255, 255, 255, 0.18);
+  --ok: #9fc2ad;                            /* salvia apagada */
+  --warn: var(--muted);
+  --err: #e0908f;
+  --active: rgba(0, 0, 0, 0.45);            /* nota en uso: fondo oscuro */
+  --title: #b9c8da;                         /* título de la nota: azul acero plateado */
 
   --radius: 7px;
   --window-radius: 12px;
-  --font-ui: 'IBM Plex Sans', 'Inter', system-ui, 'Cantarell', 'Noto Sans', sans-serif;
+  --font-display: 'Cormorant Garamond', 'EB Garamond', Georgia, 'DejaVu Serif', serif;
+  --font-ui: 'Inter Variable', 'Inter', system-ui, 'Cantarell', 'Noto Sans', sans-serif;
   --font-mono: 'IBM Plex Mono', 'JetBrains Mono', 'Fira Code', 'DejaVu Sans Mono', ui-monospace, monospace;
   color-scheme: dark;
 }
@@ -38,11 +42,12 @@ html, body {
   background: transparent;
   color: var(--text);
   font: 13px/1.45 var(--font-ui);
+  font-feature-settings: 'cv11', 'ss01'; /* variantes más limpias de Inter */
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
-::selection { background: rgba(167, 139, 250, 0.35); color: #fff; }
+::selection { background: rgba(255, 255, 255, 0.22); color: #fff; }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.09); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.16); }
@@ -149,14 +154,14 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 }
 .item:hover { background: var(--raised); }
 /* Nota en uso: fondo oscuro. */
-.item.active { background: rgba(0, 0, 0, 0.42); }
-.item.active .item-title { color: var(--text); font-weight: 500; }
+.item.active { background: var(--active); box-shadow: inset 2px 0 0 var(--accent-line); }
+.item.active .item-title { color: var(--accent-strong); font-weight: 600; }
 .item.active .item-num { color: var(--accent); }
 
 /* Selección con el teclado: solo mientras se usa el buscador; si no, el
    primer elemento parecería siempre marcado. */
 .app.searching .item.selected { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
-.app.searching .item.active.selected { background: rgba(0, 0, 0, 0.42); }
+.app.searching .item.active.selected { background: var(--active); }
 
 .item-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .item-title {
@@ -190,7 +195,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 /* Notas de la lista: una línea, solo título y número de atajo. */
 .item-note { align-items: center; gap: 6px; padding: 4px 8px; }
-.item-note .item-title { font-weight: 400; }
+.item-note .item-title { font: 500 15.5px/1.35 var(--font-display); letter-spacing: 0.01em; }
 .app.searching .item-note.selected .item-title, .item-note:hover .item-title { color: var(--text); }
 .item-num {
   width: 12px;
@@ -200,6 +205,19 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   color: var(--faint);
 }
 .app.searching .item-note.selected .item-num { color: var(--accent); }
+
+/* Papelera en cada nota: visible al pasar el ratón y siempre en la nota en uso. */
+.item-delete {
+  flex: none;
+  display: flex;
+  padding: 3px;
+  border-radius: 4px;
+  color: var(--faint);
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s, background 0.12s;
+}
+.item-note:hover .item-delete, .item-note.active .item-delete { opacity: 1; }
+.item-delete:hover { color: var(--err); background: rgba(224, 144, 143, 0.12); }
 
 /* ── Editor ─────────────────────────────────────────────────────────── */
 
@@ -215,9 +233,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   background: transparent;
   border: 0;
   outline: 0;
-  color: var(--text);
-  font: 500 20px/1.3 var(--font-ui);
-  letter-spacing: -0.01em;
+  color: var(--title);
+  font: 700 26px/1.2 var(--font-display);
+  letter-spacing: 0.005em;
   padding: 0;
 }
 .editor-title::placeholder { color: var(--faint); }

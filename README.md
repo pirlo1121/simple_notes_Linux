@@ -25,7 +25,7 @@ Notas rápidas para Debian/Linux. Pulsa **Ctrl+Espacio** y aparece un panel en e
 | Fijar / desfijar | `Ctrl D` |
 | Nota de hoy (`2026-09-24.md`) | `Ctrl T` |
 | Historial de cambios | `Ctrl H` |
-| Eliminar (con «Deshacer») | `Ctrl ⇧ ⌫` |
+| Eliminar (con «Deshacer») | `Ctrl ⇧ ⌫`, o la papelera de cada nota en la lista |
 | Mostrar / ocultar la lista de notas | `Ctrl B` |
 | Ocultar ventana | `Esc` / `Ctrl W` |
 | Salir del todo | `Ctrl Q` |
@@ -33,7 +33,7 @@ Notas rápidas para Debian/Linux. Pulsa **Ctrl+Espacio** y aparece un panel en e
 
 **Flujo:** `Ctrl+Espacio` abre la app como un panel lateral a la derecha, con todo el alto de la pantalla. Arriba está la última nota que usaste, con el cursor listo. Debajo, el resto de notas en una lista compacta de títulos numerados: `Ctrl 5` abre la nota 5. La numeración es estable: primero las fijadas y luego de la más nueva a la más antigua. Abrir o editar una nota no cambia los números. La nota abierta también aparece en la lista, con fondo oscuro. Al buscar, la lista mantiene su tamaño. `Ctrl N` crea una nota nueva. La primera línea hace de título si no escribes uno.
 
-El panel es ligeramente translúcido (grafito violeta con acento morado) y **siempre queda por encima de las demás ventanas** hasta que lo cierras (Esc o Ctrl+Espacio). Se redimensiona desde cualquier borde o esquina, y **siempre se abre con el último tamaño que le diste**, también entre reinicios.
+El panel es ligeramente translúcido, con un tema «tinta y marfil»: negro neutro, texto marfil, acentos en plata y títulos en serif (Cormorant Garamond, con Inter para la interfaz). Las fuentes van incluidas en la app. El panel **siempre queda por encima de las demás ventanas** hasta que lo cierras (Esc o Ctrl+Espacio). Se redimensiona desde cualquier borde o esquina, y **siempre se abre con el último tamaño que le diste**, también entre reinicios.
 
 **Ventana movible:** arrástrala desde cualquier sitio salvo el título y el texto de la nota (ahí arrastrar selecciona texto). En la lista y el buscador, un clic funciona como siempre y basta con mover el ratón con el botón pulsado para arrastrar. Al moverla pasa a flotar. Se vuelve a abrir donde la dejaste, con el mismo tamaño. `/dock` (o `/acoplar`) la devuelve al borde derecho. Una nota que se queda sin título ni contenido se envía sola a la papelera al salir de ella, así la lista no se llena de «Sin título».
 

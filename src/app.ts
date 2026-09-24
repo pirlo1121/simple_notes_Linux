@@ -83,7 +83,10 @@ export class App implements CommandContext {
       onKey: (e) => this.onSearchKey(e),
       onFocusChange: (focused) => this.ui.set({ searchFocused: focused }),
     });
-    this.list = new NoteList((i) => this.pick(i));
+    this.list = new NoteList(
+      (i) => this.pick(i),
+      (id) => void this.deleteNote(id),
+    );
     this.editor = new Editor({
       onChange: (patch) => {
         this.notes.update(patch);
@@ -473,15 +476,22 @@ export class App implements CommandContext {
   }
 
   async deleteCurrent(): Promise<void> {
+    if (!this.notes.current) return;
+    await this.notes.flush(); // una nota recién escrita pasa a existir en disco
     const cur = this.notes.current;
-    if (!cur) return;
-    await this.notes.flush();
     if (!cur.persisted) {
-      this.newNote();
+      this.newNote(); // vacía y sin guardar: solo se descarta
       return;
     }
-    const { id } = cur;
-    const title = displayTitle(cur.title, cur.body);
+    await this.deleteNote(cur.id);
+  }
+
+  /** Manda una nota a la papelera (la abierta o cualquiera de la lista), con «Deshacer». */
+  async deleteNote(id: string): Promise<void> {
+    const wasCurrent = this.notes.current?.id === id;
+    if (wasCurrent) await this.notes.flush();
+    const cur = this.notes.current;
+    const title = wasCurrent && cur ? displayTitle(cur.title, cur.body) : (this.index.get(id)?.title ?? 'Nota');
     try {
       await this.backend.deleteNote(id);
     } catch (e) {
@@ -490,7 +500,7 @@ export class App implements CommandContext {
     }
     this.index.delete(id);
     this.state.forget(id);
-    this.newNote();
+    if (wasCurrent) this.newNote();
     void this.runQuery(false);
     this.toast.show(
       `«${title}» movida a la papelera`,
@@ -500,7 +510,7 @@ export class App implements CommandContext {
           try {
             const meta = await this.backend.restoreNote(id);
             this.index.set(meta.id, meta);
-            await this.openNote(id);
+            if (wasCurrent) await this.openNote(id);
             void this.runQuery(false);
           } catch (e) {
             this.toast.show(`No se pudo restaurar: ${e}`);

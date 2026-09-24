@@ -13,15 +13,24 @@ export type ListItem =
 
 export const isSelectable = (item: ListItem) => item.kind !== 'header' && item.kind !== 'empty';
 
+const TRASH_ICON =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
+
 export class NoteList {
   readonly el: HTMLElement;
 
-  constructor(private onPick: (index: number) => void) {
+  constructor(
+    private onPick: (index: number) => void,
+    private onDelete: (noteId: string) => void,
+  ) {
     this.el = h('nav', { class: 'list', role: 'listbox', tabindex: '-1' });
     this.el.addEventListener('mousedown', (e) => e.preventDefault()); // no robar el foco
     this.el.addEventListener('click', (e) => {
-      const row = (e.target as HTMLElement).closest<HTMLElement>('[data-index]');
-      if (row) this.onPick(Number(row.dataset.index));
+      const target = e.target as HTMLElement;
+      const row = target.closest<HTMLElement>('[data-index]');
+      if (!row) return;
+      if (target.closest('.item-delete') && row.dataset.id) this.onDelete(row.dataset.id);
+      else this.onPick(Number(row.dataset.index));
     });
   }
 
@@ -73,11 +82,14 @@ export class NoteList {
         const n = item.note;
         const active = n.id === activeId ? ' active' : '';
         const hint = item.number ? `Ctrl ${item.number} · ${n.file}` : n.file;
+        const trash = h('button', { class: 'item-delete', type: 'button', title: 'Eliminar nota (se puede deshacer)' });
+        trash.innerHTML = TRASH_ICON;
         return h(
           'div',
-          { class: cls('item-note' + active), 'data-index': index, role: 'option', title: hint },
+          { class: cls('item-note' + active), 'data-index': index, 'data-id': n.id, role: 'option', title: hint },
           h('span', { class: 'item-num' }, item.number ? String(item.number) : ''),
           h('span', { class: 'item-title' }, n.pinned ? h('span', { class: 'pin' }, '📌') : null, n.title),
+          trash,
         );
       }
     }
