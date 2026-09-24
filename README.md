@@ -79,35 +79,85 @@ Variables de entorno opcionales:
 
 ---
 
-## Compilar e instalar en Debian 12/13
+## Instalar en otro equipo Debian
 
-### 1. Dependencias (una sola vez)
+Hay dos caminos:
+
+- **A. Instalar el `.deb` ya compilado**: rápido, no necesita herramientas de desarrollo.
+- **B. Compilar desde el código fuente**: necesario si no tienes un `.deb` o quieres modificar la app.
+
+### Requisitos
+
+| | Mínimo |
+|---|---|
+| Sistema | Debian 12 (bookworm) o 13 (trixie), 64 bits (`amd64`). También Ubuntu 22.04+ y derivadas |
+| Escritorio | Cualquiera con X11 o Wayland (GNOME, KDE, XFCE, i3, sway, Hyprland…) |
+| Para ejecutar | `libwebkit2gtk-4.1-0`, `libgtk-3-0` (apt las instala solas con el `.deb`) |
+| Para compilar | `git`, Rust ≥ 1.77 (vía rustup), Node.js ≥ 18 con npm, y las librerías `-dev` del paso B.2 |
+| Espacio para compilar | ~3 GB libres (la carpeta `src-tauri/target` crece bastante) |
+
+### A. Instalar un `.deb` ya compilado
+
+1. En el equipo donde ya compilaste, el paquete está en
+   `src-tauri/target/release/bundle/deb/QuickNotes_0.1.0_amd64.deb`. Cópialo al otro equipo (USB, `scp`…).
+2. En el equipo nuevo:
+
+   ```sh
+   sudo apt update
+   sudo apt install ./QuickNotes_0.1.0_amd64.deb
+   ```
+
+3. Ábrela desde el menú de aplicaciones (**QuickNotes**) o con `quicknotes` en una terminal.
+4. Sigue con el [paso 5 (atajo Ctrl+Espacio)](#5-atajo-ctrlespacio).
+
+### B. Compilar desde el código fuente
+
+#### 1. Clonar el repositorio
 
 ```sh
 sudo apt update
+sudo apt install -y git
+git clone https://github.com/pirlo1121/simple_notes_Linux.git
+cd simple_notes_Linux
+```
+
+#### 2. Instalar las dependencias del sistema
+
+```sh
 sudo apt install -y build-essential curl wget file pkg-config libssl-dev \
   libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev
+```
+
+#### 3. Instalar Rust y Node.js
+
+```sh
+# Rust (no uses el rustc de apt: puede ser demasiado antiguo)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source ~/.cargo/env
-# Node.js ≥ 18 (apt install nodejs npm, o nvm)
+rustc --version          # debe ser ≥ 1.77
+
+# Node.js ≥ 18 (el de Debian 12 y 13 sirve)
+sudo apt install -y nodejs npm
+node --version
+```
+
+> Atajo: los pasos 2 y 3 (y el `npm install` del paso 4) se hacen de una vez con `make deps`,
+> aunque Node.js debe estar instalado antes.
+
+#### 4. Instalar las dependencias de npm y compilar
+
+```sh
 npm install
+make deb                 # = npm run tauri build -- --bundles deb
 ```
 
-También puedes usar `make deps`.
+La primera compilación tarda varios minutos. Al terminar muestra la ruta del paquete:
+`src-tauri/target/release/bundle/deb/QuickNotes_0.1.0_amd64.deb`.
 
-### 2. Desarrollo
-
-```sh
-npm run tauri dev      # app completa con recarga en caliente
-npm run dev            # solo la interfaz en el navegador, con datos simulados
-cd src-tauri && cargo test
-```
-
-### 3. Paquete `.deb`
+Instálalo:
 
 ```sh
-make deb               # = npm run tauri build -- --bundles deb
-make install           # sudo apt install ./src-tauri/target/release/bundle/deb/QuickNotes_0.1.0_amd64.deb
+make install             # = sudo apt install ./src-tauri/target/release/bundle/deb/QuickNotes_*_amd64.deb
 ```
 
 El paquete instala:
@@ -116,11 +166,9 @@ El paquete instala:
 - la entrada de menú `QuickNotes` y sus iconos
 - `/usr/share/quicknotes/setup-shortcut.sh`
 
-Depende solo de `libwebkit2gtk-4.1-0` y `libgtk-3-0`.
+#### 5. Atajo Ctrl+Espacio
 
-### 4. Atajo Ctrl+Espacio
-
-La app registra Ctrl+Espacio por sí misma y se activa sola al iniciar sesión, porque el primer arranque configura el autoarranque (`/autostart` para desactivarlo). Así funciona aunque la ventana esté oculta, minimizada o en segundo plano.
+Abre la app una vez (menú de aplicaciones o `quicknotes`). La app registra Ctrl+Espacio por sí misma y en el primer arranque se configura para iniciarse con la sesión (`/autostart` para desactivarlo). Así funciona aunque la ventana esté oculta, minimizada o en segundo plano.
 
 Hay dos casos en los que hace falta un atajo del escritorio:
 
@@ -130,7 +178,7 @@ Hay dos casos en los que hace falta un atajo del escritorio:
 En ambos casos, ejecuta una vez:
 
 ```sh
-sh /usr/share/quicknotes/setup-shortcut.sh      # o: make shortcut
+sh /usr/share/quicknotes/setup-shortcut.sh      # o, desde el repositorio: make shortcut
 ```
 
 El script crea un atajo que ejecuta `quicknotes --toggle`. Si la app no está abierta, se abre. Si ya lo está, la instancia única la muestra y la enfoca. En KDE, XFCE, i3, sway o Hyprland, el script indica qué añadir.
@@ -140,6 +188,44 @@ Opciones de línea de comandos:
 - `--toggle`: mostrar u ocultar.
 - `--hidden`: arrancar en segundo plano.
 - `--quit`: guardar y salir.
+
+#### 6. Llevarte tus notas (opcional)
+
+Las notas son ficheros `.md` en `~/.quicknotes/`. Para pasarlas del equipo antiguo al nuevo, copia esa carpeta entera (incluye `.history/` y `.trash/`), con la app cerrada (`quicknotes --quit`):
+
+```sh
+rsync -a ~/.quicknotes/ usuario@equipo-nuevo:~/.quicknotes/
+```
+
+### Desarrollo
+
+```sh
+npm run tauri dev      # app completa con recarga en caliente
+npm run dev            # solo la interfaz en el navegador, con datos simulados
+make check             # typecheck + cargo check
+make test              # tests de Rust
+```
+
+### Actualizar a una versión nueva
+
+```sh
+cd simple_notes_Linux
+git pull
+npm install
+quicknotes --quit
+make deb && make install
+quicknotes &
+```
+
+Las notas de `~/.quicknotes` no se tocan.
+
+### Desinstalar
+
+```sh
+sudo apt remove quick-notes
+```
+
+Las notas siguen en `~/.quicknotes/`. Bórralas a mano si ya no las quieres.
 
 ### Problemas conocidos
 
@@ -156,4 +242,4 @@ Opciones de línea de comandos:
 | Búsqueda instantánea con miles de notas | Índice en minúsculas en Rust. Una búsqueda recorre ~25 MB de texto en pocos ms, sin IPC por nota. |
 | Guardado seguro | Escritura atómica (tmp + fsync + rename) en un hilo de trabajo, más un diario de borradores en cada pulsación. |
 
-Detalles de diseño en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Cómo cerrar, desarrollar y actualizar la app: [GUIA.md](GUIA.md).
+Detalles de diseño en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
