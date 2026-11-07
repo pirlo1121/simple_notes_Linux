@@ -19,7 +19,7 @@ SCHEMA="$MEDIA.custom-keybinding:$KPATH"
 # Añade al final de la configuración un bloque entre marcas (atajo, reglas de
 # ventana y arranque con la sesión). Volver a ejecutar el script lo reemplaza.
 # En Wayland la app no puede colocarse sola, así que las reglas hacen de
-# colocación: panel flotante, fijado en todos los escritorios, en el borde derecho.
+# colocación: panel flotante, fijado en todos los escritorios y centrado en la pantalla.
 HYPR_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
 MARK_BEGIN=">>> quicknotes"
 MARK_END="<<< quicknotes"
@@ -71,7 +71,7 @@ hl.window_rule({
     float = true,
     pin   = true,
     size  = "440 monitor_h-60",
-    move  = "monitor_w-450 50",
+    center = true,
 })
 hl.on("hyprland.start", function ()
   hl.exec_cmd("${QUICKNOTES_BIN:-quicknotes} --hidden")
@@ -86,7 +86,7 @@ bind = $mods, $key, exec, $COMMAND
 windowrule = float, class:$CLASS
 windowrule = pin, class:$CLASS
 windowrule = size 440 monitor_h-60, class:$CLASS
-windowrule = move monitor_w-450 50, class:$CLASS
+windowrule = center, class:$CLASS
 exec-once = ${QUICKNOTES_BIN:-quicknotes} --hidden
 # $MARK_END
 EOF

@@ -92,7 +92,7 @@ make shortcut    # Hyprland: añade Ctrl+Espacio, reglas de panel y arranque con
 
 En Hyprland (Wayland) la app no puede capturar Ctrl+Espacio ni colocarse sola: `make shortcut`
 (o `sh /usr/share/quicknotes/setup-shortcut.sh`) añade a `~/.config/hypr/hyprland.lua` un bloque
-con el atajo, una regla que la deja como panel flotante en el borde derecho y el arranque oculto
+con el atajo, una regla que la deja como panel flotante centrado en la pantalla y el arranque oculto
 con la sesión. Otra combinación: `sh setup-shortcut.sh '<Super>n'`. Quitarlo: `--remove`.
 
 Actualizar: `git pull && make pkg && make close && make install`. Desinstalar: `make uninstall`.
