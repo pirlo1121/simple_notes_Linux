@@ -1,0 +1,43 @@
+# PKGBUILD de QuickNotes para Arch Linux.
+#
+# Compila desde esta misma copia del repositorio (no descarga el código):
+#   make pkg && make install
+# o a mano:
+#   cd packaging && makepkg -f
+#   sudo pacman -U quicknotes-*.pkg.tar.zst
+pkgname=quicknotes
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Notas rápidas en Markdown, sin distracciones (Ctrl+Espacio)"
+arch=('x86_64')
+url="https://github.com/pirlo1121/simple_notes_Linux"
+license=('unknown')
+depends=('webkit2gtk-4.1' 'gtk3' 'hicolor-icon-theme')
+makedepends=('nodejs' 'npm' 'rust')
+options=('!lto' '!debug')
+
+# Raíz del repositorio (este PKGBUILD vive en packaging/).
+_root="$(cd "$startdir/.." && pwd)"
+
+build() {
+  cd "$_root"
+  npm ci || npm install
+  npm run tauri build -- --no-bundle
+}
+
+check() {
+  cd "$_root/src-tauri"
+  cargo test --release
+}
+
+package() {
+  cd "$_root"
+  install -Dm755 src-tauri/target/release/quicknotes "$pkgdir/usr/bin/quicknotes"
+  install -Dm644 packaging/quicknotes.desktop "$pkgdir/usr/share/applications/quicknotes.desktop"
+  install -Dm755 packaging/setup-shortcut.sh "$pkgdir/usr/share/quicknotes/setup-shortcut.sh"
+  install -Dm644 src-tauri/icons/32x32.png "$pkgdir/usr/share/icons/hicolor/32x32/apps/quicknotes.png"
+  install -Dm644 src-tauri/icons/64x64.png "$pkgdir/usr/share/icons/hicolor/64x64/apps/quicknotes.png"
+  install -Dm644 src-tauri/icons/128x128.png "$pkgdir/usr/share/icons/hicolor/128x128/apps/quicknotes.png"
+  install -Dm644 src-tauri/icons/128x128@2x.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/quicknotes.png"
+  install -Dm644 packaging/icon.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/quicknotes.svg"
+}

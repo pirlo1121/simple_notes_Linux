@@ -79,6 +79,26 @@ Variables de entorno opcionales:
 
 ---
 
+## Instalar en Arch Linux (rama `arch`)
+
+```sh
+git clone -b arch https://github.com/pirlo1121/simple_notes_Linux.git
+cd simple_notes_Linux
+make deps        # sudo pacman -S --needed base-devel nodejs npm rust webkit2gtk-4.1 … + npm ci
+make pkg         # compila y genera packaging/quicknotes-0.1.0-1-x86_64.pkg.tar.zst
+make install     # sudo pacman -U …
+make shortcut    # Hyprland: añade Ctrl+Espacio, reglas de panel y arranque con la sesión
+```
+
+En Hyprland (Wayland) la app no puede capturar Ctrl+Espacio ni colocarse sola: `make shortcut`
+(o `sh /usr/share/quicknotes/setup-shortcut.sh`) añade a `~/.config/hypr/hyprland.lua` un bloque
+con el atajo, una regla que la deja como panel flotante en el borde derecho y el arranque oculto
+con la sesión. Otra combinación: `sh setup-shortcut.sh '<Super>n'`. Quitarlo: `--remove`.
+
+Actualizar: `git pull && make pkg && make close && make install`. Desinstalar: `make uninstall`.
+
+---
+
 ## Instalar en otro equipo Debian
 
 Hay dos caminos:

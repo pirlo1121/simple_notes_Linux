@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=QuickNotes
+Comment=Notas rápidas, sin distracciones
+Exec=quicknotes
+Icon=quicknotes
+Terminal=false
+Categories=Utility;
+StartupWMClass=quicknotes

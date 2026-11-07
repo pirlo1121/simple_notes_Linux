@@ -4,4 +4,6 @@ src-tauri/target/
 src-tauri/gen/
 *.log
 GUIA.md
-scripts/
+scripts/packaging/src/
+packaging/pkg/
+packaging/*.pkg.tar.zst

@@ -15,6 +15,94 @@ MEDIA=org.gnome.settings-daemon.plugins.media-keys
 KPATH=/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/quicknotes/
 SCHEMA="$MEDIA.custom-keybinding:$KPATH"
 
+# ── Hyprland ────────────────────────────────────────────────────────────────
+# Añade al final de la configuración un bloque entre marcas (atajo, reglas de
+# ventana y arranque con la sesión). Volver a ejecutar el script lo reemplaza.
+# En Wayland la app no puede colocarse sola, así que las reglas hacen de
+# colocación: panel flotante, fijado en todos los escritorios, en el borde derecho.
+HYPR_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
+MARK_BEGIN=">>> quicknotes"
+MARK_END="<<< quicknotes"
+CLASS='^(quicknotes|dev\.quicknotes\.app)$'
+
+has_hyprland() {
+  [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || [ -f "$HYPR_DIR/hyprland.lua" ] || [ -f "$HYPR_DIR/hyprland.conf" ]
+}
+
+# '<Super><Shift>j' -> modificadores "SUPER SHIFT" y tecla "J" ('space' -> "SPACE").
+hypr_mods() {
+  printf '%s' "$1" | grep -o '<[^>]*>' | tr -d '<>' | tr '[:lower:]' '[:upper:]' |
+    sed 's/^CONTROL$/CTRL/; s/^PRIMARY$/CTRL/' | tr '\n' ' ' | sed 's/ $//'
+}
+hypr_key() {
+  printf '%s' "$1" | sed 's/<[^>]*>//g' | tr '[:lower:]' '[:upper:]'
+}
+
+hypr_setup() {
+  if [ -f "$HYPR_DIR/hyprland.lua" ]; then
+    file="$HYPR_DIR/hyprland.lua"; c="--"
+  else
+    file="$HYPR_DIR/hyprland.conf"; c="#"
+  fi
+  [ -f "$file" ] || { echo "No se encontró $file"; exit 1; }
+
+  # Quitar el bloque anterior, si lo hay.
+  if grep -qF -e "$c $MARK_BEGIN" "$file"; then
+    cp "$file" "$file.quicknotes.bak"
+    sed -i "/^$c $MARK_BEGIN/,/^$c $MARK_END/d" "$file"
+  fi
+
+  if [ "$BINDING" = "--remove" ]; then
+    echo "Atajo y reglas de QuickNotes eliminados de $file."
+  else
+    mods=$(hypr_mods "$BINDING")
+    key=$(hypr_key "$BINDING")
+    [ -n "$key" ] || { echo "Atajo no válido: $BINDING"; exit 1; }
+    if [ "$c" = "--" ]; then
+      combo=$(printf '%s' "$mods" | sed 's/ / + /g')
+      [ -n "$combo" ] && combo="$combo + "
+      cat >>"$file" <<EOF
+
+-- $MARK_BEGIN (lo gestiona setup-shortcut.sh; quitar con: sh /usr/share/quicknotes/setup-shortcut.sh --remove)
+hl.bind("$combo$key", hl.dsp.exec_cmd("$COMMAND"))
+hl.window_rule({
+    name  = "quicknotes-panel",
+    match = { class = [[$CLASS]] },
+    float = true,
+    pin   = true,
+    size  = "440 monitor_h-60",
+    move  = "monitor_w-450 50",
+})
+hl.on("hyprland.start", function ()
+  hl.exec_cmd("${QUICKNOTES_BIN:-quicknotes} --hidden")
+end)
+-- $MARK_END
+EOF
+    else
+      cat >>"$file" <<EOF
+
+# $MARK_BEGIN (lo gestiona setup-shortcut.sh; quitar con: sh /usr/share/quicknotes/setup-shortcut.sh --remove)
+bind = $mods, $key, exec, $COMMAND
+windowrule = float, class:$CLASS
+windowrule = pin, class:$CLASS
+windowrule = size 440 monitor_h-60, class:$CLASS
+windowrule = move monitor_w-450 50, class:$CLASS
+exec-once = ${QUICKNOTES_BIN:-quicknotes} --hidden
+# $MARK_END
+EOF
+    fi
+    echo "Listo: $BINDING ejecuta \"$COMMAND\" (añadido a $file)."
+  fi
+  command -v hyprctl >/dev/null 2>&1 && hyprctl reload >/dev/null 2>&1 || true
+}
+
+if has_hyprland; then
+  hypr_setup
+  exit 0
+fi
+
+# ── GNOME y otros ───────────────────────────────────────────────────────────
+
 has_gnome() {
   command -v gsettings >/dev/null 2>&1 && gsettings list-schemas 2>/dev/null | grep -qx "$MEDIA"
 }

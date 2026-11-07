@@ -1,23 +1,20 @@
 # QuickNotes — tareas habituales. `make help` para ver la lista.
 
-.PHONY: help deps dev check test build deb install update close uninstall shortcut clean
+.PHONY: help deps dev check test build pkg install close uninstall shortcut clean
 
 help:
-	@echo "make deps      Instala dependencias del sistema (sudo) y de npm"
+	@echo "make deps      Instala dependencias del sistema (sudo pacman) y de npm"
 	@echo "make dev       Ejecuta la app en modo desarrollo"
 	@echo "make check     Typecheck + cargo check"
 	@echo "make test      Tests de Rust"
-	@echo "make deb       Genera el paquete .deb"
-	@echo "make install   Instala el .deb generado (sudo)"
-	@echo "make update    Compila, cierra, instala y reabre la app"
+	@echo "make pkg       Genera el paquete de pacman (packaging/quicknotes-*.pkg.tar.zst)"
+	@echo "make install   Instala el paquete generado (sudo pacman -U)"
+	@echo "make uninstall Desinstala el paquete (sudo pacman -R)"
 	@echo "make close     Cierra la app guardando todo"
-	@echo "make shortcut  Configura Ctrl+Espacio en el escritorio (GNOME)"
+	@echo "make shortcut  Configura Ctrl+Espacio en el escritorio (Hyprland o GNOME)"
 
 deps:
-	sudo apt-get update
-	sudo apt-get install -y build-essential curl wget file pkg-config libssl-dev \
-		libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev
-	@command -v cargo >/dev/null || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+	sudo pacman -S --needed base-devel nodejs npm rust webkit2gtk-4.1 gtk3 librsvg
 	npm ci || npm install
 
 dev:
@@ -30,24 +27,21 @@ check:
 test:
 	cd src-tauri && cargo test
 
-build deb:
-	npm run tauri build -- --bundles deb
-	@ls -1 src-tauri/target/release/bundle/deb/*.deb
+build pkg:
+	cd packaging && makepkg -f
+	@ls -1 packaging/quicknotes-*.pkg.tar.zst
 
 install:
-	sudo apt install -y ./src-tauri/target/release/bundle/deb/QuickNotes_*_amd64.deb
-
-update:
-	sh scripts/actualizar.sh
+	sudo pacman -U --noconfirm $$(ls -1t packaging/quicknotes-*.pkg.tar.zst | head -1)
 
 close:
-	sh scripts/actualizar.sh cerrar
+	quicknotes --quit || true
 
 uninstall:
-	sudo apt remove -y $$(dpkg-deb -f src-tauri/target/release/bundle/deb/*.deb Package)
+	sudo pacman -R quicknotes
 
 shortcut:
 	sh packaging/setup-shortcut.sh
 
 clean:
-	rm -rf dist src-tauri/target
+	rm -rf dist src-tauri/target packaging/src packaging/pkg packaging/*.pkg.tar.zst
