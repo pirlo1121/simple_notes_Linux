@@ -70,7 +70,7 @@ hl.window_rule({
     match = { class = [[$CLASS]] },
     float = true,
     pin   = true,
-    size  = "440 monitor_h-60",
+    size  = "monitor_w*0.6 monitor_h*0.7",
     center = true,
 })
 hl.on("hyprland.start", function ()
@@ -85,7 +85,7 @@ EOF
 bind = $mods, $key, exec, $COMMAND
 windowrule = float, class:$CLASS
 windowrule = pin, class:$CLASS
-windowrule = size 440 monitor_h-60, class:$CLASS
+windowrule = size monitor_w*0.6 monitor_h*0.7, class:$CLASS
 windowrule = center, class:$CLASS
 exec-once = ${QUICKNOTES_BIN:-quicknotes} --hidden
 # $MARK_END
